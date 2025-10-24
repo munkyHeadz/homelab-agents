@@ -35,6 +35,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from agents.infrastructure_agent import InfrastructureAgent
 from agents.monitoring_agent import MonitoringAgent
 from agents.autonomous_health_agent import AutonomousHealthAgent
+from agents.scheduled_reporting_agent import ScheduledReportingAgent
 from shared.config import config
 from shared.logging import get_logger
 from shared.metrics import start_metrics_server, get_metrics_collector, telegram_messages_received_total, telegram_messages_sent_total
@@ -68,8 +69,16 @@ class TelegramBotInterface:
         # Initialize autonomous health agent with this bot as notifier
         self.health_agent = AutonomousHealthAgent(telegram_notifier=self)
 
-        # Store scheduled health reports job
+        # Initialize scheduled reporting agent
+        self.reporting_agent = ScheduledReportingAgent(
+            telegram_notifier=self,
+            health_agent=self.health_agent,
+            infrastructure_agent=self.infrastructure_agent
+        )
+
+        # Store background tasks
         self.health_monitoring_task = None
+        self.reporting_task = None
 
         self.logger.info("Telegram bot interface initialized")
 
@@ -287,6 +296,11 @@ Welcome! I'm your autonomous homelab management assistant with self-healing capa
 /enable_autohealing - Enable auto-healing
 /disable_autohealing - Disable auto-healing
 
+**📊 Scheduled Reports:**
+/enable_reports - Enable daily reports
+/disable_reports - Disable reports
+/report_now - Generate report now
+
 **💾 Backup:**
 /backup - Show backup status
 /backup <vmid> - Status for specific VM
@@ -338,6 +352,16 @@ The auto-healing system will:
 • Auto-fix low-risk issues (restart containers, clean disk)
 • Request approval for risky actions (VM reboots, etc.)
 • Learn from successful fixes
+
+**📊 Scheduled Reports:**
+/enable_reports - Enable daily/weekly/monthly reports
+/disable_reports - Disable scheduled reports
+/report_now - Generate immediate health summary
+
+Reports include:
+• Daily health summaries (8 AM)
+• Weekly trend analysis (Mondays)
+• Monthly summary reports (1st of month)
 
 **💾 Backup Status:**
 /backup - Show recent backup status for all VMs
@@ -1042,18 +1066,26 @@ Should I proceed with this action?"""
                 self.health_agent.run_monitoring_loop(interval=60)
             )
 
-            await update.message.reply_text("""✅ **Auto-Healing Enabled**
+            # Also start scheduled reports if not running
+            if not self.reporting_task:
+                self.reporting_task = asyncio.create_task(
+                    self.reporting_agent.run_reporting_loop(check_interval=3600)
+                )
+
+            await update.message.reply_text("""✅ **Auto-Healing & Reporting Enabled**
 
 The system will now:
 • Monitor infrastructure every 60 seconds
 • Auto-fix low-risk issues automatically
 • Request approval for risky actions
 • Send notifications to this chat
+• Send daily health reports at 8 AM
 
 Use /health to view current status
-Use /disable_autohealing to stop""")
+Use /disable_autohealing to stop
+Use /enable_reports or /disable_reports to control reports separately""")
 
-            self.logger.info("Auto-healing enabled")
+            self.logger.info("Auto-healing and reporting enabled")
 
         except Exception as e:
             self.logger.error(f"Error enabling auto-healing: {e}")
@@ -1079,6 +1111,71 @@ Use /disable_autohealing to stop""")
         except Exception as e:
             self.logger.error(f"Error disabling auto-healing: {e}")
             await update.message.reply_text(f"❌ Error: {str(e)}")
+
+    async def enable_reports_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /enable_reports command"""
+        if not self.is_authorized(update.effective_user.id):
+            return
+
+        if self.reporting_task:
+            await update.message.reply_text("✅ Scheduled reports are already enabled!")
+            return
+
+        try:
+            self.reporting_task = asyncio.create_task(
+                self.reporting_agent.run_reporting_loop(check_interval=3600)
+            )
+
+            await update.message.reply_text("""✅ **Scheduled Reports Enabled**
+
+You'll receive:
+• Daily health summary at 8 AM
+• Weekly trends report (Mondays at 8 AM)
+• Monthly summary report (1st of month at 8 AM)
+
+Use /disable_reports to stop
+Use /report_now to generate immediate report""")
+
+            self.logger.info("Scheduled reporting enabled")
+
+        except Exception as e:
+            self.logger.error(f"Error enabling reports: {e}")
+            await update.message.reply_text(f"❌ Error: {str(e)}")
+
+    async def disable_reports_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /disable_reports command"""
+        if not self.is_authorized(update.effective_user.id):
+            return
+
+        if not self.reporting_task:
+            await update.message.reply_text("Scheduled reports are not currently running")
+            return
+
+        try:
+            self.reporting_task.cancel()
+            self.reporting_task = None
+
+            await update.message.reply_text("🛑 Scheduled reports disabled")
+            self.logger.info("Scheduled reporting disabled")
+
+        except Exception as e:
+            self.logger.error(f"Error disabling reports: {e}")
+            await update.message.reply_text(f"❌ Error: {str(e)}")
+
+    async def report_now_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /report_now command - generate immediate report"""
+        if not self.is_authorized(update.effective_user.id):
+            return
+
+        msg = await update.message.reply_text("📊 Generating health report...")
+
+        try:
+            report = await self.reporting_agent.generate_daily_health_summary()
+            await msg.edit_text(report, parse_mode='Markdown')
+
+        except Exception as e:
+            self.logger.error(f"Error generating report: {e}")
+            await msg.edit_text(f"❌ Error: {str(e)}")
 
     # ========== Backup Status Command ==========
 
@@ -1365,6 +1462,11 @@ Use /disable_autohealing to stop""")
         application.add_handler(CommandHandler("health", self.health_command))
         application.add_handler(CommandHandler("enable_autohealing", self.enable_autohealing_command))
         application.add_handler(CommandHandler("disable_autohealing", self.disable_autohealing_command))
+
+        # Scheduled reporting handlers
+        application.add_handler(CommandHandler("enable_reports", self.enable_reports_command))
+        application.add_handler(CommandHandler("disable_reports", self.disable_reports_command))
+        application.add_handler(CommandHandler("report_now", self.report_now_command))
 
         # Backup status handler
         application.add_handler(CommandHandler("backup", self.backup_command))
