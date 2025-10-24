@@ -6,32 +6,85 @@ An autonomous agent system for managing homelab infrastructure using Claude AI a
 
 This system provides intelligent, autonomous management of homelab infrastructure through:
 - **Telegram Bot Interface** - Control your homelab from your phone
-- **Autonomous Health Agent** - Self-monitoring, self-healing, and self-improving system (NEW v2.5)
+- **Autonomous Health Agent** - Self-monitoring, self-healing, and self-improving system (v2.5)
+- **Scheduled Reporting** - Daily/weekly/monthly health reports (v2.6)
+- **Backup Verification** - Automated backup integrity checking (v2.7)
+- **Service Monitoring** - Multi-service health checks (v2.7)
+- **Predictive Analysis** - Forecasting and capacity planning (v2.7)
+- **Web Dashboard** - Real-time monitoring interface (v2.7)
 - **Infrastructure Agent** - Manage Proxmox VMs, LXC containers, and Docker
 - **Monitoring Agent** - Network monitoring, alerts, and incident response
 - **MCP Integration** - Modular tool access via Model Context Protocol
 
 ## Features
 
-### 🤖 Telegram Bot v2.5
+### 🤖 Telegram Bot v2.7
 - Complete system status monitoring
 - VM and container management (start/stop/restart)
 - Docker container control (restart/stop)
-- Resource monitoring
+- Resource monitoring with 35+ commands
 - Natural language interface
 - Interactive button menus
 - Automatic updates (`/update` command)
-- Backup status checking
-- Health monitoring and reports
+- Backup verification and integrity checks
+- Service health monitoring (Plex, Sonarr, Radarr, etc.)
+- Predictive analysis and trend forecasting
+- Health monitoring and automated reports
 
-### 🏥 Autonomous Self-Healing (NEW)
+### 🏥 Autonomous Self-Healing (v2.5)
 - Continuous health monitoring (every 60 seconds)
 - Automatic diagnosis using Claude AI
 - Risk-based auto-healing (LOW risk actions executed automatically)
 - Telegram approval workflow for risky actions
 - Real-time notifications and reporting
 - Learning from successful fixes
-- See [AUTONOMOUS_FEATURES.md](AUTONOMOUS_FEATURES.md) for details
+- See [AUTONOMOUS_FEATURES.md](docs/AUTONOMOUS_FEATURES.md) for details
+
+### 📊 Scheduled Reporting (v2.6)
+- Daily health summaries (8 AM)
+- Weekly trend analysis (Mondays)
+- Monthly summary reports (1st of month)
+- Prometheus alert integration
+- Customizable report schedules
+
+### 💾 Backup Verification (v2.7 - NEW)
+- Automated backup integrity checks
+- Three verification levels (Basic, Checksum, Restore Test)
+- Critical VM monitoring
+- Success rate tracking
+- Automatic alerts for failed/missing backups
+- See [PHASE3_FEATURES.md](docs/PHASE3_FEATURES.md) for details
+
+### 🔧 Service Health Monitoring (v2.7 - NEW)
+- Multi-service support (Plex, Sonarr, Radarr, Jellyfin, Pi-hole, etc.)
+- HTTP endpoint health checks
+- API availability testing
+- Service-specific metrics (streams, downloads, queries)
+- Real-time alerts on service degradation
+
+### 🔮 Predictive Analysis (v2.7 - NEW)
+- Resource usage forecasting
+- Disk full predictions
+- Memory exhaustion warnings
+- Service failure predictions
+- Trend analysis and anomaly detection
+- Historical data tracking (7-day default)
+
+### 🌐 Web Dashboard (v2.7 - NEW)
+- Real-time monitoring interface
+- Visual status indicators
+- Service health dashboard
+- Predictive analysis charts
+- Mobile-responsive design
+- Auto-refresh (30 seconds)
+- Access at `http://YOUR_LXC_IP:5000`
+
+### 🤖 Advanced Automation (v2.7 - NEW)
+- SSL certificate monitoring & auto-renewal
+- Scheduled system updates
+- Automated log cleanup
+- Database maintenance (VACUUM/ANALYZE)
+- Docker image update checks
 
 ### 🏗️ Infrastructure Management
 - Proxmox VE integration (VMs and LXC)
@@ -313,21 +366,28 @@ systemctl status node_exporter
 ## Documentation
 
 ### Getting Started
-- **[Complete Feature Summary](COMPLETE_FEATURE_SUMMARY.md)** - ⭐ **START HERE** - Everything built in v2.5 & v2.6
-- [Deployment Instructions](DEPLOYMENT_INSTRUCTIONS.md) - Step-by-step deployment
-- [README](README.md) - This file - Project overview
+- **[README](README.md)** - This file - Project overview and features
+- **[Complete Feature Summary](docs/COMPLETE_FEATURE_SUMMARY.md)** - v2.5 & v2.6 features (40+ pages)
+- **[Phase 3 Features](docs/PHASE3_FEATURES.md)** - ⭐ **NEW v2.7** - Advanced monitoring & automation
+- [Deployment Instructions](docs/DEPLOYMENT_INSTRUCTIONS.md) - Step-by-step deployment
 
-### Feature Guides
-- [Autonomous Features](AUTONOMOUS_FEATURES.md) - Self-healing system guide (750+ lines)
-- [Prometheus Integration](PROMETHEUS_INTEGRATION.md) - Alert forwarding setup
-- [Bot Improvements](BOT_IMPROVEMENTS.md) - Telegram bot features
-- [Telegram Testing](TELEGRAM_BOT_TESTING.md) - Manual testing procedures
+### Feature Guides (By Version)
+- **v2.7 (Phase 3):**
+  - [Phase 3 Features](docs/PHASE3_FEATURES.md) - Backup verification, service monitoring, predictions, web dashboard
+- **v2.6:**
+  - [Prometheus Integration](docs/PROMETHEUS_INTEGRATION.md) - Alert forwarding and webhook setup
+  - [Scheduled Reporting](docs/COMPLETE_FEATURE_SUMMARY.md#scheduled-reporting) - Daily/weekly/monthly reports
+- **v2.5:**
+  - [Autonomous Features](docs/AUTONOMOUS_FEATURES.md) - Self-healing system guide (750+ lines)
+- **Core:**
+  - [Bot Improvements](docs/BOT_IMPROVEMENTS.md) - Telegram bot features
+  - [Telegram Testing](docs/TELEGRAM_BOT_TESTING.md) - Manual testing procedures
 
 ### Technical References
-- [Test Report](TEST_REPORT.md) - Integration test results
-- [Implementation Status](IMPLEMENTATION_STATUS.md) - Feature tracking
-- [MCP Servers](MCP_SERVERS_STATUS.md) - MCP server documentation
-- [Git Troubleshooting](FIX_GIT_OWNERSHIP.md) - Fix git ownership issues
+- [Test Report](docs/TEST_REPORT.md) - Integration test results
+- [Implementation Status](docs/IMPLEMENTATION_STATUS.md) - Feature tracking
+- [MCP Servers](docs/MCP_SERVERS_STATUS.md) - MCP server documentation
+- [Git Troubleshooting](docs/FIX_GIT_OWNERSHIP.md) - Fix git ownership issues
 
 ## Troubleshooting
 

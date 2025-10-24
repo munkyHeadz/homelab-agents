@@ -36,6 +36,9 @@ from agents.infrastructure_agent import InfrastructureAgent
 from agents.monitoring_agent import MonitoringAgent
 from agents.autonomous_health_agent import AutonomousHealthAgent
 from agents.scheduled_reporting_agent import ScheduledReportingAgent
+from agents.backup_verification_agent import BackupVerificationAgent
+from agents.service_health_agent import ServiceHealthAgent
+from agents.predictive_analysis_agent import PredictiveAnalysisAgent
 from shared.config import config
 from shared.logging import get_logger
 from shared.metrics import start_metrics_server, get_metrics_collector, telegram_messages_received_total, telegram_messages_sent_total
@@ -76,9 +79,29 @@ class TelegramBotInterface:
             infrastructure_agent=self.infrastructure_agent
         )
 
+        # Initialize backup verification agent (Phase 3)
+        self.backup_agent = BackupVerificationAgent(
+            telegram_notifier=self,
+            infrastructure_agent=self.infrastructure_agent
+        )
+
+        # Initialize service health agent (Phase 3)
+        self.service_health_agent = ServiceHealthAgent(
+            telegram_notifier=self
+        )
+
+        # Initialize predictive analysis agent (Phase 3)
+        self.predictive_agent = PredictiveAnalysisAgent(
+            telegram_notifier=self,
+            health_agent=self.health_agent
+        )
+
         # Store background tasks
         self.health_monitoring_task = None
         self.reporting_task = None
+        self.backup_verification_task = None
+        self.service_monitoring_task = None
+        self.predictive_analysis_task = None
 
         self.logger.info("Telegram bot interface initialized")
 
@@ -305,6 +328,12 @@ Welcome! I'm your autonomous homelab management assistant with self-healing capa
 /backup - Show backup status
 /backup <vmid> - Status for specific VM
 
+**🔍 Advanced (Phase 3):**
+/verify_backups - Verify backups
+/services - Monitor services
+/predictions - Predictive analysis
+/trends - Resource trends
+
 **⚙️ Management:**
 /update - Update bot code
 /help - Show command reference
@@ -366,6 +395,15 @@ Reports include:
 **💾 Backup Status:**
 /backup - Show recent backup status for all VMs
 /backup <vmid> - Show backup status for specific VM
+
+**🔍 Phase 3: Advanced Monitoring:**
+/verify_backups - Verify all backup integrity
+/backup_report - Detailed backup verification report
+/services - List all monitored services
+/service_health - Service health status report
+/predictions - Show predictive analysis
+/prediction_report - Detailed prediction report
+/trends - View resource usage trends
 
 **Bot Management:**
 /update - Pull latest code and restart
@@ -1211,6 +1249,212 @@ Use /report_now to generate immediate report""")
             self.logger.error(f"Error in backup command: {e}")
             await msg.edit_text(f"❌ Error: {str(e)}")
 
+    # ========== Phase 3 Commands: Backup Verification ==========
+
+    async def verify_backups_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /verify_backups command - verify all backups"""
+        if not self.is_authorized(update.effective_user.id):
+            return
+
+        msg = await update.message.reply_text("🔍 Verifying all backups...")
+
+        try:
+            results = await self.backup_agent.verify_all_backups()
+
+            summary = f"💾 **Backup Verification Complete**\n\n"
+            summary += f"Total VMs: {results['total_vms']}\n"
+            summary += f"✅ Verified: {results['verified']}\n"
+            summary += f"❌ Failed: {results['failed']}\n"
+            summary += f"⚠️ Missing: {results['missing']}\n"
+
+            if results['critical_missing']:
+                summary += "\n🚨 **Critical VMs with missing backups:**\n"
+                for vm in results['critical_missing']:
+                    summary += f"• VM {vm['vm_id']}: {vm['vm_name']}\n"
+
+            await msg.edit_text(summary, parse_mode='Markdown')
+
+        except Exception as e:
+            self.logger.error(f"Error verifying backups: {e}")
+            await msg.edit_text(f"❌ Error: {str(e)}")
+
+    async def backup_report_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /backup_report command - detailed backup report"""
+        if not self.is_authorized(update.effective_user.id):
+            return
+
+        msg = await update.message.reply_text("📊 Generating backup report...")
+
+        try:
+            report = await self.backup_agent.generate_backup_report()
+            await msg.edit_text(report, parse_mode='Markdown')
+
+        except Exception as e:
+            self.logger.error(f"Error generating backup report: {e}")
+            await msg.edit_text(f"❌ Error: {str(e)}")
+
+    # ========== Phase 3 Commands: Service Health ==========
+
+    async def services_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /services command - list all monitored services"""
+        if not self.is_authorized(update.effective_user.id):
+            return
+
+        msg = await update.message.reply_text("🔍 Checking services...")
+
+        try:
+            results = await self.service_health_agent.check_all_services()
+
+            summary = "🔧 **Monitored Services**\n\n"
+
+            if not results:
+                summary += "No services configured yet.\n\n"
+                summary += "Add services in .env file:\n"
+                summary += "• PLEX_URL\n• SONARR_URL\n• RADARR_URL\n"
+                summary += "• JELLYFIN_URL\n• And more..."
+            else:
+                for service_id, health in sorted(results.items()):
+                    status_emoji = {
+                        "healthy": "✅",
+                        "degraded": "🟡",
+                        "unhealthy": "🟠",
+                        "down": "🔴",
+                        "unknown": "⚪"
+                    }.get(health.status.value, "⚪")
+
+                    summary += f"{status_emoji} **{health.service_name}**"
+
+                    if health.response_time:
+                        summary += f" ({health.response_time:.2f}s)"
+
+                    summary += "\n"
+
+                    if health.error_message:
+                        summary += f"   ⚠️ {health.error_message}\n"
+
+            await msg.edit_text(summary, parse_mode='Markdown')
+
+        except Exception as e:
+            self.logger.error(f"Error checking services: {e}")
+            await msg.edit_text(f"❌ Error: {str(e)}")
+
+    async def service_health_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /service_health command - detailed service health report"""
+        if not self.is_authorized(update.effective_user.id):
+            return
+
+        msg = await update.message.reply_text("📊 Generating service health report...")
+
+        try:
+            report = await self.service_health_agent.generate_health_report()
+            await msg.edit_text(report, parse_mode='Markdown')
+
+        except Exception as e:
+            self.logger.error(f"Error generating service health report: {e}")
+            await msg.edit_text(f"❌ Error: {str(e)}")
+
+    # ========== Phase 3 Commands: Predictive Analysis ==========
+
+    async def predictions_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /predictions command - show predictive analysis"""
+        if not self.is_authorized(update.effective_user.id):
+            return
+
+        msg = await update.message.reply_text("🔮 Running predictive analysis...")
+
+        try:
+            predictions = await self.predictive_agent.analyze_all_components()
+
+            if not predictions:
+                summary = "🔮 **Predictive Analysis**\n\n"
+                summary += "No predictions at this time.\n\n"
+                summary += "💡 The system needs more historical data to make accurate predictions.\n"
+                summary += "Check back after the system has been monitoring for at least 24 hours."
+            else:
+                summary = f"🔮 **Predictive Analysis**\n\n"
+                summary += f"Generated {len(predictions)} predictions:\n\n"
+
+                for pred in predictions[:5]:  # Show top 5
+                    severity_emoji = {
+                        "critical": "🔴",
+                        "warning": "🟡",
+                        "info": "🔵"
+                    }.get(pred.severity.value, "⚪")
+
+                    days_until = (pred.predicted_time - datetime.now()).days
+
+                    summary += f"{severity_emoji} **{pred.component}**\n"
+                    summary += f"   {pred.prediction_type.value.replace('_', ' ').title()}\n"
+                    summary += f"   In ~{days_until} days\n"
+                    summary += f"   {pred.description}\n\n"
+
+                if len(predictions) > 5:
+                    summary += f"\n_...and {len(predictions) - 5} more predictions_\n"
+                    summary += "\nUse /prediction_report for full details"
+
+            await msg.edit_text(summary, parse_mode='Markdown')
+
+        except Exception as e:
+            self.logger.error(f"Error generating predictions: {e}")
+            await msg.edit_text(f"❌ Error: {str(e)}")
+
+    async def prediction_report_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /prediction_report command - detailed predictive analysis report"""
+        if not self.is_authorized(update.effective_user.id):
+            return
+
+        msg = await update.message.reply_text("📊 Generating prediction report...")
+
+        try:
+            report = await self.predictive_agent.generate_analysis_report()
+            await msg.edit_text(report, parse_mode='Markdown')
+
+        except Exception as e:
+            self.logger.error(f"Error generating prediction report: {e}")
+            await msg.edit_text(f"❌ Error: {str(e)}")
+
+    async def trends_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /trends command - show resource trends"""
+        if not self.is_authorized(update.effective_user.id):
+            return
+
+        msg = await update.message.reply_text("📈 Analyzing trends...")
+
+        try:
+            # Get trends for key metrics
+            components = ["proxmox_node", "docker_daemon"]
+            metrics = ["cpu_usage", "memory_usage", "disk_usage"]
+
+            summary = "📈 **Resource Trends**\n\n"
+
+            has_data = False
+            for component in components:
+                for metric in metrics:
+                    trend = self.predictive_agent.calculate_trend(component, metric)
+                    if trend:
+                        has_data = True
+                        direction_emoji = {
+                            "increasing": "📈",
+                            "decreasing": "📉",
+                            "stable": "➡️"
+                        }.get(trend.direction, "➡️")
+
+                        summary += f"{direction_emoji} **{component} - {metric}**\n"
+                        summary += f"   Direction: {trend.direction}\n"
+                        summary += f"   Rate: {trend.slope:+.2f}%/hour\n"
+                        summary += f"   Current: {trend.values[-1]:.1f}%\n\n"
+
+            if not has_data:
+                summary += "No trend data available yet.\n\n"
+                summary += "The system needs time to collect metrics for trend analysis.\n"
+                summary += "Check back in a few hours."
+
+            await msg.edit_text(summary, parse_mode='Markdown')
+
+        except Exception as e:
+            self.logger.error(f"Error analyzing trends: {e}")
+            await msg.edit_text(f"❌ Error: {str(e)}")
+
     # ========== Interactive Menu Commands ==========
 
     async def menu_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1470,6 +1714,19 @@ Use /report_now to generate immediate report""")
 
         # Backup status handler
         application.add_handler(CommandHandler("backup", self.backup_command))
+
+        # Phase 3: Backup Verification handlers
+        application.add_handler(CommandHandler("verify_backups", self.verify_backups_command))
+        application.add_handler(CommandHandler("backup_report", self.backup_report_command))
+
+        # Phase 3: Service Health handlers
+        application.add_handler(CommandHandler("services", self.services_command))
+        application.add_handler(CommandHandler("service_health", self.service_health_command))
+
+        # Phase 3: Predictive Analysis handlers
+        application.add_handler(CommandHandler("predictions", self.predictions_command))
+        application.add_handler(CommandHandler("prediction_report", self.prediction_report_command))
+        application.add_handler(CommandHandler("trends", self.trends_command))
 
         # Bot management
         application.add_handler(CommandHandler("update", self.update_command))
