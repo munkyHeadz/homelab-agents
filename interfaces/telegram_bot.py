@@ -36,6 +36,8 @@ from agents.monitoring_agent import MonitoringAgent
 from shared.config import config
 from shared.logging import get_logger
 from shared.metrics import start_metrics_server, get_metrics_collector, telegram_messages_received_total, telegram_messages_sent_total
+from shared.alert_manager import get_alert_manager, Alert, AlertStatus
+from interfaces.webhook_server import WebhookServer
 
 logger = get_logger(__name__)
 
@@ -54,10 +56,18 @@ class TelegramBotInterface:
         self.token = config.telegram.bot_token
         self.allowed_users = config.telegram.admin_ids
         self.start_time = datetime.now()
+        self.application = None  # Will be set in run()
 
         # Initialize agents
         self.infrastructure_agent = InfrastructureAgent()
         self.monitoring_agent = MonitoringAgent()
+
+        # Initialize alert system
+        self.alert_manager = get_alert_manager()
+        self.webhook_server = WebhookServer(port=8001, alert_callback=self.on_alert_received)
+
+        # Pending confirmations for destructive actions
+        self.pending_confirmations = {}
 
         self.logger.info("Telegram bot interface initialized")
 
