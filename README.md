@@ -312,10 +312,22 @@ systemctl status node_exporter
 
 ## Documentation
 
-- [Bot Improvements](BOT_IMPROVEMENTS.md) - Telegram bot features and updates
-- [Telegram Testing Guide](TELEGRAM_BOT_TESTING.md) - Manual testing procedures
+### Getting Started
+- **[Complete Feature Summary](COMPLETE_FEATURE_SUMMARY.md)** - ⭐ **START HERE** - Everything built in v2.5 & v2.6
+- [Deployment Instructions](DEPLOYMENT_INSTRUCTIONS.md) - Step-by-step deployment
+- [README](README.md) - This file - Project overview
+
+### Feature Guides
+- [Autonomous Features](AUTONOMOUS_FEATURES.md) - Self-healing system guide (750+ lines)
+- [Prometheus Integration](PROMETHEUS_INTEGRATION.md) - Alert forwarding setup
+- [Bot Improvements](BOT_IMPROVEMENTS.md) - Telegram bot features
+- [Telegram Testing](TELEGRAM_BOT_TESTING.md) - Manual testing procedures
+
+### Technical References
 - [Test Report](TEST_REPORT.md) - Integration test results
-- [Deployment Guide](DEPLOYMENT.md) - Complete deployment walkthrough
+- [Implementation Status](IMPLEMENTATION_STATUS.md) - Feature tracking
+- [MCP Servers](MCP_SERVERS_STATUS.md) - MCP server documentation
+- [Git Troubleshooting](FIX_GIT_OWNERSHIP.md) - Fix git ownership issues
 
 ## Troubleshooting
 
@@ -364,10 +376,15 @@ MIT License - See LICENSE file for details
 ---
 
 **Status**: ✅ Production
-**Version**: 2.5 (Autonomous Self-Healing)
+**Version**: 2.6 (Scheduled Reports & Prometheus Integration)
 **Last Updated**: 2025-10-24
 
-**New in v2.5:**
+**New in v2.6:**
+- 📊 Scheduled health reports (daily/weekly/monthly)
+- 🔔 Prometheus alert integration with auto-remediation
+- 📈 Trend analysis and reporting
+
+**v2.5 Features:**
 - 🏥 Autonomous health monitoring and self-healing
 - 🎮 Interactive Telegram button menus
 - 🔧 VM/Container control commands
