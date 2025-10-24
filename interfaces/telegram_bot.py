@@ -607,24 +607,94 @@ Use these commands for details:
         msg = await update.message.reply_text("🔄 Updating bot code...")
 
         try:
-            # Run git pull
-            result = subprocess.run(
-                ["git", "pull"],
-                cwd="/root/homelab-agents",
+            repo_dir = "/root/homelab-agents"
+
+            # Step 1: Fetch from remote
+            await msg.edit_text("🔄 Fetching updates from GitHub...")
+            fetch_result = subprocess.run(
+                ["git", "fetch", "origin"],
+                cwd=repo_dir,
                 capture_output=True,
                 text=True,
                 timeout=30
             )
 
-            if result.returncode == 0:
-                update_output = result.stdout.strip()
+            if fetch_result.returncode != 0:
+                await msg.edit_text(f"❌ Fetch failed:\n```\n{fetch_result.stderr}\n```", parse_mode='Markdown')
+                return
 
-                if "Already up to date" in update_output:
+            # Step 2: Check current branch
+            branch_result = subprocess.run(
+                ["git", "branch", "--show-current"],
+                cwd=repo_dir,
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+            current_branch = branch_result.stdout.strip()
+
+            # Step 3: Ensure we're on main branch
+            if current_branch != "main":
+                await msg.edit_text(f"🔄 Switching to main branch (currently on {current_branch})...")
+                subprocess.run(
+                    ["git", "checkout", "main"],
+                    cwd=repo_dir,
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                current_branch = "main"
+
+            # Step 4: Set up tracking if not configured
+            tracking_result = subprocess.run(
+                ["git", "config", "--get", "branch.main.merge"],
+                cwd=repo_dir,
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+
+            if tracking_result.returncode != 0:
+                # No tracking set up, configure it
+                await msg.edit_text("🔄 Setting up branch tracking...")
+                subprocess.run(
+                    ["git", "branch", "--set-upstream-to=origin/main", "main"],
+                    cwd=repo_dir,
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+
+            # Step 5: Pull updates
+            await msg.edit_text("🔄 Pulling latest changes...")
+            pull_result = subprocess.run(
+                ["git", "pull"],
+                cwd=repo_dir,
+                capture_output=True,
+                text=True,
+                timeout=30
+            )
+
+            if pull_result.returncode == 0:
+                update_output = pull_result.stdout.strip()
+
+                if "Already up to date" in update_output or "Already up-to-date" in update_output:
                     await msg.edit_text("✅ Bot is already up to date!")
                 else:
+                    # Get summary of changes
+                    log_result = subprocess.run(
+                        ["git", "log", "-1", "--oneline"],
+                        cwd=repo_dir,
+                        capture_output=True,
+                        text=True,
+                        timeout=10
+                    )
+                    latest_commit = log_result.stdout.strip()
+
                     await msg.edit_text(f"""✅ **Update Complete**
 
-{update_output}
+**Latest commit:**
+{latest_commit}
 
 🔄 Restarting bot in 3 seconds...""")
 
@@ -637,8 +707,12 @@ Use these commands for details:
                         timeout=10
                     )
             else:
-                await msg.edit_text(f"❌ Update failed:\n```\n{result.stderr}\n```", parse_mode='Markdown')
+                error_msg = pull_result.stderr.strip()
+                await msg.edit_text(f"❌ Update failed:\n```\n{error_msg}\n```", parse_mode='Markdown')
 
+        except subprocess.TimeoutExpired:
+            self.logger.error("Git command timeout in update")
+            await msg.edit_text("❌ Update timed out. Please try again or check git status manually.")
         except Exception as e:
             self.logger.error(f"Error in update command: {e}")
             await msg.edit_text(f"❌ Error: {str(e)}")
