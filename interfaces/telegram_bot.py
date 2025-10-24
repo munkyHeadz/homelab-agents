@@ -187,29 +187,42 @@ class TelegramBotInterface:
                 vms = []
 
                 for item in data:
-                    status_emoji = "🟢" if item.get('status') == 'running' else "🔴"
+                    status_emoji = "✅" if item.get('status') == 'running' else "⭕"
                     name = item.get('name', f"ID {item.get('vmid', 'Unknown')}")
                     vmid = item.get('vmid', '?')
                     mem = self.format_bytes(item.get('mem', 0))
+                    maxmem = self.format_bytes(item.get('maxmem', 0))
                     cpu = item.get('cpu', 0) * 100
+                    uptime_days = item.get('uptime', 0) / 86400
 
-                    line = f"{status_emoji} **{vmid}** - {name}\n  └ CPU: {cpu:.1f}% | Mem: {mem}"
+                    # Compact format
+                    line = f"{status_emoji} `{vmid}` {name}\n"
+                    if item.get('status') == 'running':
+                        line += f"    💻 {cpu:.1f}% | 🧠 {mem}/{maxmem} | ⏱ {uptime_days:.1f}d"
+                    else:
+                        line += f"    Status: {item.get('status', 'unknown')}"
 
                     if item.get('type') == 'lxc':
                         lxc_containers.append(line)
                     else:
                         vms.append(line)
 
-                result = "📦 **LXC Containers**\n" + "\n".join(lxc_containers) if lxc_containers else ""
+                parts = []
                 if vms:
-                    result += "\n\n🖥️ **Virtual Machines**\n" + "\n".join(vms)
+                    parts.append(f"🖥️ **Virtual Machines** ({len(vms)})\n" + "\n".join(vms))
+                if lxc_containers:
+                    parts.append(f"📦 **LXC Containers** ({len(lxc_containers)})\n" + "\n".join(lxc_containers))
 
-                return result if result else "No VMs or containers found"
+                return "\n\n".join(parts) if parts else "No VMs or containers found"
             else:
-                return self._format_text_data(raw_data)
+                # Handle text format - replace escaped newlines
+                formatted = raw_data.replace('\\n', '\n').strip()
+                if len(formatted) > 3000:
+                    formatted = formatted[:3000] + "\n\n_... (truncated - too many items)_"
+                return formatted
         except Exception as e:
             self.logger.error(f"Error parsing VM list: {e}")
-            return raw_data[:500]
+            return raw_data[:1000].replace('\\n', '\n')
 
     def parse_container_list(self, raw_data: str) -> str:
         """Parse and format Docker container list"""
@@ -217,32 +230,44 @@ class TelegramBotInterface:
             data = self.parse_json_response(raw_data)
             if isinstance(data, list):
                 if not data:
-                    return "No containers found"
+                    return "🐳 No Docker containers found"
 
-                result = "🐳 **Docker Containers**\n\n"
+                result = f"🐳 **Docker Containers** ({len(data)})\n\n"
                 for container in data:
                     status = container.get('State', 'unknown')
-                    status_emoji = "🟢" if status == 'running' else "🔴"
+                    status_emoji = "✅" if status == 'running' else "⭕"
                     name = container.get('Names', ['Unknown'])[0].lstrip('/')
                     image = container.get('Image', 'Unknown')
 
-                    result += f"{status_emoji} **{name}**\n"
-                    result += f"  └ Image: {image}\n"
-                    result += f"  └ Status: {container.get('Status', 'Unknown')}\n\n"
+                    # Shorten image name if too long
+                    if len(image) > 40:
+                        image = image[:37] + "..."
 
-                return result
+                    result += f"{status_emoji} `{name}`\n"
+                    result += f"    📦 {image}\n"
+                    result += f"    {container.get('Status', 'Unknown')}\n\n"
+
+                return result.strip()
             else:
-                return self._format_text_data(raw_data)
+                # Handle text format
+                formatted = raw_data.replace('\\n', '\n').strip()
+                if len(formatted) > 3000:
+                    formatted = formatted[:3000] + "\n\n_... (truncated)_"
+                return formatted
         except Exception as e:
             self.logger.error(f"Error parsing container list: {e}")
-            return raw_data[:500]
+            return raw_data[:1000].replace('\\n', '\n')
 
     def _format_text_data(self, text: str) -> str:
         """Format plain text data for better readability"""
-        text = re.sub(r'\n\s*\n', '\n', text)
-        if len(text) > 1000:
-            text = text[:1000] + "\n\n... (truncated)"
-        return text
+        # Replace escaped newlines with actual newlines
+        text = text.replace('\\n', '\n')
+        # Remove excessive blank lines
+        text = re.sub(r'\n\s*\n\s*\n', '\n\n', text)
+        # Telegram message limit is 4096, but leave room for formatting
+        if len(text) > 3500:
+            text = text[:3500] + "\n\n_... (truncated - message too long)_"
+        return text.strip()
 
     # === ALERT SYSTEM COMMANDS (Phase A) ===
 
