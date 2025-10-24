@@ -1,0 +1,190 @@
+groups:
+  - name: infrastructure_alerts
+    interval: 30s
+    rules:
+      # System Resource Alerts
+      - alert: HighCPUUsage
+        expr: (100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)) > 80
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is above 80% (current value: {{ $value | humanize }}%)"
+
+      - alert: CriticalCPUUsage
+        expr: (100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)) > 95
+        for: 2m
+        labels:
+          severity: critical
+          component: system
+        annotations:
+          summary: "Critical CPU usage on {{ $labels.instance }}"
+          description: "CPU usage is above 95% (current value: {{ $value | humanize }}%)"
+
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+          component: system
+        annotations:
+          summary: "High memory usage on {{ $labels.instance }}"
+          description: "Memory usage is above 85% (current value: {{ $value | humanize }}%)"
+
+      - alert: CriticalMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100 > 95
+        for: 2m
+        labels:
+          severity: critical
+          component: system
+        annotations:
+          summary: "Critical memory usage on {{ $labels.instance }}"
+          description: "Memory usage is above 95% (current value: {{ $value | humanize }}%)"
+
+      - alert: DiskSpaceWarning
+        expr: (1 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"})) * 100 > 80
+        for: 10m
+        labels:
+          severity: warning
+          component: storage
+        annotations:
+          summary: "Low disk space on {{ $labels.instance }}"
+          description: "Root filesystem usage is above 80% (current value: {{ $value | humanize }}%)"
+
+      - alert: DiskSpaceCritical
+        expr: (1 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"})) * 100 > 90
+        for: 5m
+        labels:
+          severity: critical
+          component: storage
+        annotations:
+          summary: "Critical disk space on {{ $labels.instance }}"
+          description: "Root filesystem usage is above 90% (current value: {{ $value | humanize }}%)"
+
+  - name: agent_alerts
+    interval: 30s
+    rules:
+      # Agent Health Alerts
+      - alert: AgentUnhealthy
+        expr: agent_health_status == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: agent
+        annotations:
+          summary: "Agent {{ $labels.agent_name }} is unhealthy"
+          description: "Agent {{ $labels.agent_name }} health status is 0"
+
+      - alert: AgentHighErrorRate
+        expr: rate(agent_errors_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: agent
+        annotations:
+          summary: "High error rate for {{ $labels.agent_name }}"
+          description: "Agent {{ $labels.agent_name }} error rate is above 0.1/s (current: {{ $value | humanize }})"
+
+      - alert: MCPConnectionDown
+        expr: mcp_connections_active == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: mcp
+        annotations:
+          summary: "MCP connection down: {{ $labels.mcp_server }}"
+          description: "Agent {{ $labels.agent_name }} has lost connection to {{ $labels.mcp_server }}"
+
+      - alert: AgentTaskSlow
+        expr: histogram_quantile(0.95, rate(agent_task_duration_seconds_bucket[5m])) > 60
+        for: 10m
+        labels:
+          severity: warning
+          component: agent
+        annotations:
+          summary: "Slow agent tasks for {{ $labels.agent_name }}"
+          description: "95th percentile task duration is above 60s (current: {{ $value | humanize }}s)"
+
+  - name: docker_alerts
+    interval: 30s
+    rules:
+      # Docker Alerts
+      - alert: DockerDaemonDown
+        expr: up{job="docker"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: docker
+        annotations:
+          summary: "Docker daemon is down"
+          description: "Docker metrics endpoint is not responding"
+
+      - alert: HighContainerRestartRate
+        expr: rate(engine_daemon_container_actions_seconds_count{action="restart"}[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          component: docker
+        annotations:
+          summary: "High container restart rate"
+          description: "Container restart rate is above 0.5/s (current: {{ $value | humanize }})"
+
+  - name: service_alerts
+    interval: 30s
+    rules:
+      # Service Availability
+      - alert: PrometheusDown
+        expr: up{job="prometheus"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          component: monitoring
+        annotations:
+          summary: "Prometheus is down"
+          description: "Prometheus service is not responding"
+
+      - alert: NodeExporterDown
+        expr: up{job="node-exporter"} == 0
+        for: 1m
+        labels:
+          severity: warning
+          component: monitoring
+        annotations:
+          summary: "Node Exporter is down on {{ $labels.instance }}"
+          description: "Node Exporter metrics are not available"
+
+      - alert: HomelabAgentsDown
+        expr: up{job="homelab-agents"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: agents
+        annotations:
+          summary: "Homelab agents are down"
+          description: "Agent metrics endpoint is not responding"
+
+  - name: network_alerts
+    interval: 30s
+    rules:
+      # Network Alerts
+      - alert: HighNetworkErrors
+        expr: rate(node_network_receive_errs_total[5m]) + rate(node_network_transmit_errs_total[5m]) > 10
+        for: 5m
+        labels:
+          severity: warning
+          component: network
+        annotations:
+          summary: "High network error rate on {{ $labels.instance }}"
+          description: "Network error rate is above 10/s on device {{ $labels.device }}"
+
+      - alert: HighNetworkTraffic
+        expr: rate(node_network_receive_bytes_total{device!="lo"}[5m]) > 100000000
+        for: 10m
+        labels:
+          severity: info
+          component: network
+        annotations:
+          summary: "High network traffic on {{ $labels.instance }}"
+          description: "Network receive rate is above 100MB/s on device {{ $labels.device }}"

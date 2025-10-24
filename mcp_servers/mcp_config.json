@@ -1,0 +1,197 @@
+{
+  "mcpServers": {
+    "proxmox": {
+      "command": "python",
+      "args": ["mcp_servers/proxmox_mcp/server.py"],
+      "description": "Proxmox VE infrastructure management (VMs, LXC, storage, backups)",
+      "enabled": true,
+      "category": "infrastructure",
+      "requiredEnvVars": [
+        "PROXMOX_HOST",
+        "PROXMOX_NODE"
+      ],
+      "tools": [
+        "list_vms",
+        "get_vm_status",
+        "start_vm",
+        "stop_vm",
+        "reboot_vm",
+        "create_lxc",
+        "delete_vm",
+        "get_node_status",
+        "list_storage",
+        "create_backup",
+        "restore_backup",
+        "get_cluster_resources"
+      ]
+    },
+    "docker": {
+      "command": "python",
+      "args": ["mcp_servers/docker_mcp/server.py"],
+      "description": "Docker container and image management",
+      "enabled": true,
+      "category": "infrastructure",
+      "requiredEnvVars": [],
+      "tools": [
+        "list_containers",
+        "get_container_details",
+        "start_container",
+        "stop_container",
+        "restart_container",
+        "remove_container",
+        "get_container_logs",
+        "get_container_stats",
+        "list_images",
+        "pull_image",
+        "remove_image",
+        "list_networks",
+        "list_volumes",
+        "prune_system",
+        "get_system_info"
+      ]
+    },
+    "tailscale": {
+      "command": "python",
+      "args": ["mcp_servers/tailscale_mcp/server.py"],
+      "description": "Tailscale VPN network management (devices, ACLs, DNS)",
+      "enabled": true,
+      "category": "networking",
+      "requiredEnvVars": [
+        "TAILSCALE_API_KEY",
+        "TAILSCALE_TAILNET"
+      ],
+      "tools": [
+        "list_tailscale_devices",
+        "get_tailscale_device",
+        "authorize_tailscale_device",
+        "remove_tailscale_device",
+        "get_tailscale_acl",
+        "update_tailscale_acl",
+        "get_tailscale_dns",
+        "update_tailscale_dns",
+        "enable_subnet_routes"
+      ]
+    },
+    "cloudflare": {
+      "command": "python",
+      "args": ["mcp_servers/cloudflare_mcp/server.py"],
+      "description": "Cloudflare DNS, CDN, tunnels, and WAF management",
+      "enabled": true,
+      "category": "networking",
+      "requiredEnvVars": [
+        "CLOUDFLARE_API_TOKEN",
+        "CLOUDFLARE_ZONE_ID"
+      ],
+      "tools": [
+        "list_dns_records",
+        "create_dns_record",
+        "update_dns_record",
+        "delete_dns_record",
+        "list_cloudflare_tunnels",
+        "get_tunnel_status",
+        "purge_cache",
+        "get_zone_analytics",
+        "get_firewall_rules",
+        "create_firewall_rule"
+      ]
+    },
+    "unifi": {
+      "command": "python",
+      "args": ["mcp_servers/unifi_mcp/server.py"],
+      "description": "Unifi network infrastructure (clients, APs, switches, firewall)",
+      "enabled": true,
+      "category": "networking",
+      "requiredEnvVars": [
+        "UNIFI_HOST",
+        "UNIFI_USERNAME",
+        "UNIFI_PASSWORD"
+      ],
+      "tools": [
+        "list_unifi_clients",
+        "get_client_details",
+        "block_client",
+        "unblock_client",
+        "reconnect_client",
+        "list_unifi_devices",
+        "get_device_details",
+        "reboot_device",
+        "get_network_stats",
+        "list_firewall_rules",
+        "create_firewall_rule",
+        "create_guest_voucher"
+      ]
+    },
+    "pihole": {
+      "command": "python",
+      "args": ["mcp_servers/pihole_mcp/server.py"],
+      "description": "Pi-hole DNS ad blocking and statistics",
+      "enabled": true,
+      "category": "networking",
+      "requiredEnvVars": [
+        "PIHOLE_HOST",
+        "PIHOLE_API_TOKEN"
+      ],
+      "tools": [
+        "get_pihole_summary",
+        "enable_pihole_blocking",
+        "disable_pihole_blocking",
+        "get_pihole_top_items",
+        "get_pihole_top_clients",
+        "whitelist_domain",
+        "blacklist_domain",
+        "remove_whitelist_domain",
+        "remove_blacklist_domain",
+        "update_pihole_gravity",
+        "get_recent_blocked",
+        "get_forward_destinations",
+        "get_query_types"
+      ]
+    },
+    "mem0": {
+      "command": "python",
+      "args": ["mcp_servers/mem0_mcp/server.py"],
+      "description": "Agent memory persistence with semantic search (Mem0 + pgvector)",
+      "enabled": true,
+      "category": "intelligence",
+      "requiredEnvVars": [
+        "POSTGRES_HOST",
+        "POSTGRES_DB_MEMORY",
+        "POSTGRES_USER_MEMORY",
+        "POSTGRES_PASSWORD_MEMORY",
+        "ANTHROPIC_API_KEY"
+      ],
+      "tools": [
+        "add_memory",
+        "search_memories",
+        "get_all_memories",
+        "update_memory",
+        "delete_memory",
+        "delete_all_memories",
+        "get_memory_history",
+        "summarize_memories"
+      ]
+    }
+  },
+  "agentConfiguration": {
+    "defaultTimeout": 30,
+    "maxConcurrentServers": 10,
+    "retryAttempts": 3,
+    "retryDelay": 1,
+    "enableLogging": true,
+    "logLevel": "INFO"
+  },
+  "toolCategories": {
+    "infrastructure": {
+      "description": "VM, container, and resource management",
+      "servers": ["proxmox", "docker"]
+    },
+    "networking": {
+      "description": "Network configuration and security",
+      "servers": ["tailscale", "cloudflare", "unifi", "pihole"]
+    },
+    "intelligence": {
+      "description": "AI agent memory and learning",
+      "servers": ["mem0"]
+    }
+  }
+}

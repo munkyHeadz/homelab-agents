@@ -1,0 +1,20 @@
+[Unit]
+Description=Homelab Autonomous Agent Telegram Bot
+After=network.target
+
+[Service]
+Type=simple
+User=munky
+WorkingDirectory=/home/munky/homelab-agents
+Environment="PYTHONPATH=/home/munky/homelab-agents"
+ExecStart=/home/munky/homelab-agents/venv/bin/python /home/munky/homelab-agents/interfaces/telegram_bot.py
+Restart=always
+RestartSec=10
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=homelab-telegram-bot
+
+[Install]
+WantedBy=multi-user.target

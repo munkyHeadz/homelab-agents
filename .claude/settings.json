@@ -1,0 +1,24 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "description": "Initialize Python virtual environment and install dependencies",
+        "command": "bash",
+        "args": ["-c", "python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt"]
+      }
+    ]
+  },
+  "environmentVariables": {
+    "ANTHROPIC_API_KEY": "{{ env.ANTHROPIC_API_KEY }}",
+    "PROXMOX_HOST": "{{ env.PROXMOX_HOST }}",
+    "PROXMOX_TOKEN_ID": "{{ env.PROXMOX_TOKEN_ID }}",
+    "PROXMOX_TOKEN_SECRET": "{{ env.PROXMOX_TOKEN_SECRET }}",
+    "DOCKER_HOST": "{{ env.DOCKER_HOST }}",
+    "TELEGRAM_BOT_TOKEN": "{{ env.TELEGRAM_BOT_TOKEN }}",
+    "TELEGRAM_ADMIN_IDS": "{{ env.TELEGRAM_ADMIN_IDS }}",
+    "POSTGRES_HOST": "{{ env.POSTGRES_HOST }}",
+    "POSTGRES_USER": "{{ env.POSTGRES_USER }}",
+    "POSTGRES_PASSWORD": "{{ env.POSTGRES_PASSWORD }}"
+  },
+  "defaultShell": "bash"
+}

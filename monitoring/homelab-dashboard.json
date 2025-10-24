@@ -1,0 +1,168 @@
+{
+  "dashboard": {
+    "title": "Homelab Infrastructure Overview",
+    "tags": ["homelab", "infrastructure"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "System Uptime",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+        "targets": [{
+          "datasource": {"type": "prometheus", "uid": "ff1zlkj7nz9xca"},
+          "expr": "time() - node_boot_time_seconds{instance=\"localhost:9100\"}",
+          "refId": "A"
+        }],
+        "options": {
+          "reduceOptions": {
+            "calcs": ["lastNotNull"]
+          },
+          "text": {}
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s"
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "CPU Usage",
+        "type": "gauge",
+        "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+        "targets": [{
+          "datasource": {"type": "prometheus", "uid": "ff1zlkj7nz9xca"},
+          "expr": "100 - (avg by(instance) (rate(node_cpu_seconds_total{mode=\"idle\",instance=\"localhost:9100\"}[5m])) * 100)",
+          "refId": "A"
+        }],
+        "options": {
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 60, "color": "yellow"},
+                {"value": 80, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Memory Usage",
+        "type": "gauge",
+        "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
+        "targets": [{
+          "datasource": {"type": "prometheus", "uid": "ff1zlkj7nz9xca"},
+          "expr": "(1 - (node_memory_MemAvailable_bytes{instance=\"localhost:9100\"} / node_memory_MemTotal_bytes{instance=\"localhost:9100\"})) * 100",
+          "refId": "A"
+        }],
+        "options": {
+          "showThresholdLabels": false,
+          "showThresholdMarkers": true
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 70, "color": "yellow"},
+                {"value": 90, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Docker Containers",
+        "type": "stat",
+        "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4},
+        "targets": [{
+          "datasource": {"type": "prometheus", "uid": "ff1zlkj7nz9xca"},
+          "expr": "engine_daemon_container_states_containers{state=\"running\"}",
+          "refId": "A"
+        }],
+        "options": {
+          "reduceOptions": {
+            "calcs": ["lastNotNull"]
+          },
+          "text": {}
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short"
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Network Traffic",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+        "targets": [
+          {
+            "datasource": {"type": "prometheus", "uid": "ff1zlkj7nz9xca"},
+            "expr": "rate(node_network_receive_bytes_total{device!=\"lo\",instance=\"localhost:9100\"}[5m])",
+            "refId": "A",
+            "legendFormat": "{{device}} - RX"
+          },
+          {
+            "datasource": {"type": "prometheus", "uid": "ff1zlkj7nz9xca"},
+            "expr": "rate(node_network_transmit_bytes_total{device!=\"lo\",instance=\"localhost:9100\"}[5m])",
+            "refId": "B",
+            "legendFormat": "{{device}} - TX"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "Bps"
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Disk I/O",
+        "type": "timeseries",
+        "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
+        "targets": [
+          {
+            "datasource": {"type": "prometheus", "uid": "ff1zlkj7nz9xca"},
+            "expr": "rate(node_disk_read_bytes_total{instance=\"localhost:9100\"}[5m])",
+            "refId": "A",
+            "legendFormat": "{{device}} - Read"
+          },
+          {
+            "datasource": {"type": "prometheus", "uid": "ff1zlkj7nz9xca"},
+            "expr": "rate(node_disk_written_bytes_total{instance=\"localhost:9100\"}[5m])",
+            "refId": "B",
+            "legendFormat": "{{device}} - Write"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "Bps"
+          }
+        }
+      }
+    ],
+    "schemaVersion": 39,
+    "version": 1,
+    "refresh": "30s"
+  },
+  "folderId": 0,
+  "overwrite": true
+}

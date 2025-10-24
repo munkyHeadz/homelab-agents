@@ -1,0 +1,63 @@
+# Environment and secrets
+.env
+.env.*
+*.env
+secrets/
+credentials/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
+
+# Test coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# MCP specific
+mcp_servers/**/__pycache__/
+
+# Monitoring data
+monitoring/data/
+prometheus/data/
+grafana/data/
+
+# Backups
+backups/*.tar.gz
+*.backup
