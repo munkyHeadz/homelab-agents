@@ -6,19 +6,32 @@ An autonomous agent system for managing homelab infrastructure using Claude AI a
 
 This system provides intelligent, autonomous management of homelab infrastructure through:
 - **Telegram Bot Interface** - Control your homelab from your phone
+- **Autonomous Health Agent** - Self-monitoring, self-healing, and self-improving system (NEW v2.5)
 - **Infrastructure Agent** - Manage Proxmox VMs, LXC containers, and Docker
 - **Monitoring Agent** - Network monitoring, alerts, and incident response
 - **MCP Integration** - Modular tool access via Model Context Protocol
 
 ## Features
 
-### 🤖 Telegram Bot
+### 🤖 Telegram Bot v2.5
 - Complete system status monitoring
-- VM and container management
-- Docker container control
+- VM and container management (start/stop/restart)
+- Docker container control (restart/stop)
 - Resource monitoring
 - Natural language interface
+- Interactive button menus
 - Automatic updates (`/update` command)
+- Backup status checking
+- Health monitoring and reports
+
+### 🏥 Autonomous Self-Healing (NEW)
+- Continuous health monitoring (every 60 seconds)
+- Automatic diagnosis using Claude AI
+- Risk-based auto-healing (LOW risk actions executed automatically)
+- Telegram approval workflow for risky actions
+- Real-time notifications and reporting
+- Learning from successful fixes
+- See [AUTONOMOUS_FEATURES.md](AUTONOMOUS_FEATURES.md) for details
 
 ### 🏗️ Infrastructure Management
 - Proxmox VE integration (VMs and LXC)
@@ -161,15 +174,29 @@ The repository includes `.claude/settings.json` for Claude Code on the web:
 /status     - Complete system overview
 /uptime     - System and bot uptime
 /monitor    - Resource monitoring
+/menu       - Interactive control menu
 
 # Proxmox Management
 /node       - Node status
 /vms        - List VMs and containers
-/infra      - Infrastructure overview
+/start_vm   - Start VM/Container
+/stop_vm    - Stop VM/Container
+/restart_vm - Restart VM/Container
 
 # Docker Management
 /docker     - Docker system info
 /containers - List all containers
+/restart_container - Restart Docker container
+/stop_container    - Stop Docker container
+
+# Health & Auto-Healing
+/health              - System health report
+/enable_autohealing  - Enable autonomous monitoring
+/disable_autohealing - Disable autonomous monitoring
+
+# Backup Status
+/backup     - Show backup status
+/backup <id> - Status for specific VM
 
 # Bot Management
 /update     - Auto-update and restart
@@ -337,5 +364,12 @@ MIT License - See LICENSE file for details
 ---
 
 **Status**: ✅ Production
-**Version**: 2.0
+**Version**: 2.5 (Autonomous Self-Healing)
 **Last Updated**: 2025-10-24
+
+**New in v2.5:**
+- 🏥 Autonomous health monitoring and self-healing
+- 🎮 Interactive Telegram button menus
+- 🔧 VM/Container control commands
+- 💾 Backup status checking
+- ⚠️ Smart approval workflow for risky actions
