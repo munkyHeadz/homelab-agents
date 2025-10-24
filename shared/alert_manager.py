@@ -102,7 +102,8 @@ class Alert:
         }.get(self.status, "❓")
         
         # Duration
-        duration = datetime.now() - self.starts_at
+        from datetime import timezone
+        duration = datetime.now(timezone.utc) - self.starts_at
         hours = int(duration.total_seconds() // 3600)
         minutes = int((duration.total_seconds() % 3600) // 60)
         duration_str = f"{hours}h {minutes}m" if hours > 0 else f"{minutes}m"
@@ -307,7 +308,8 @@ class AlertManager:
     
     def cleanup_old_alerts(self, hours: int = 24):
         """Remove resolved alerts older than specified hours"""
-        cutoff = datetime.now() - timedelta(hours=hours)
+        from datetime import timezone
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
         
         to_remove = []
         for fingerprint, alert in self.alerts.items():

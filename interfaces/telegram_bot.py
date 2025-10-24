@@ -300,8 +300,9 @@ class TelegramBotInterface:
                 AlertStatus.ACKNOWLEDGED: "👀",
                 AlertStatus.SILENCED: "🔕"
             }.get(alert.status, "❓")
-            
-            duration = datetime.now() - alert.starts_at
+
+            from datetime import timezone
+            duration = datetime.now(timezone.utc) - alert.starts_at
             minutes = int(duration.total_seconds() // 60)
             
             response += f"\n{emoji} **{alert.name}**\n"
