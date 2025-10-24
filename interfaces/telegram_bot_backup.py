@@ -1,15 +1,13 @@
 #!/usr/bin/env python3
 """
-Telegram Bot Interface for Homelab Agent System - Enhanced Version
+Telegram Bot Interface for Homelab Agent System
 
 Provides a Telegram bot interface to interact with the autonomous agent system.
-
-Features:
-- System status and monitoring
-- VM/Container management with safety confirmations
-- Alert integration with Prometheus/Alertmanager
-- Docker container control
-- Natural language interface
+Allows users to:
+- Check system status
+- Execute infrastructure commands
+- Monitor resources
+- Get alerts and notifications
 - Automatic updates
 """
 
@@ -37,7 +35,7 @@ from agents.infrastructure_agent import InfrastructureAgent
 from agents.monitoring_agent import MonitoringAgent
 from shared.config import config
 from shared.logging import get_logger
-from shared.metrics import start_metrics_server, get_metrics_collector
+from shared.metrics import start_metrics_server, get_metrics_collector, telegram_messages_received_total, telegram_messages_sent_total
 from shared.alert_manager import get_alert_manager, Alert, AlertStatus
 from interfaces.webhook_server import WebhookServer
 
@@ -46,13 +44,11 @@ logger = get_logger(__name__)
 
 class TelegramBotInterface:
     """
-    Enhanced Telegram bot interface for agent system
-    
+    Telegram bot interface for agent system
+
     Integrates with:
     - Infrastructure Agent: VM/Container management
     - Monitoring Agent: Resource monitoring and alerts
-    - Alert Manager: Prometheus/Alertmanager integration
-    - Webhook Server: Alert notifications
     """
 
     def __init__(self):
@@ -73,7 +69,7 @@ class TelegramBotInterface:
         # Pending confirmations for destructive actions
         self.pending_confirmations = {}
 
-        self.logger.info("Telegram bot interface initialized with alert integration")
+        self.logger.info("Telegram bot interface initialized")
 
     def is_authorized(self, user_id: int) -> bool:
         """Check if user is authorized to use the bot"""
@@ -82,8 +78,10 @@ class TelegramBotInterface:
     def parse_json_response(self, text: str) -> Optional[Dict]:
         """Extract and parse JSON from MCP response"""
         try:
+            # Try direct JSON parse
             return json.loads(text)
         except:
+            # Try to find JSON in text
             json_match = re.search(r'\{.*\}', text, re.DOTALL)
             if json_match:
                 try:
@@ -123,6 +121,7 @@ class TelegramBotInterface:
 
         pct = (used / total) * 100
 
+        # Visual indicator
         if pct < 50:
             emoji = "🟢"
         elif pct < 80:
@@ -149,6 +148,7 @@ class TelegramBotInterface:
 **Uptime:** {self.format_uptime(uptime)}
 **Load Average:** {data.get('loadavg', ['N/A', 'N/A', 'N/A'])[0]}"""
             else:
+                # Try to extract key info from text
                 return self._format_text_data(raw_data)
         except Exception as e:
             self.logger.error(f"Error parsing node status: {e}")
@@ -239,320 +239,12 @@ class TelegramBotInterface:
 
     def _format_text_data(self, text: str) -> str:
         """Format plain text data for better readability"""
+        # Clean up excessive whitespace
         text = re.sub(r'\n\s*\n', '\n', text)
+        # Limit length
         if len(text) > 1000:
             text = text[:1000] + "\n\n... (truncated)"
         return text
-
-    # === ALERT SYSTEM COMMANDS (Phase A) ===
-
-    async def on_alert_received(self, alert: Alert):
-        """Callback when alert is received from Alertmanager"""
-        if alert.status != AlertStatus.FIRING:
-            return
-        
-        try:
-            message = alert.format_telegram()
-            
-            for admin_id in self.allowed_users:
-                try:
-                    if self.application:
-                        await self.application.bot.send_message(
-                            chat_id=admin_id,
-                            text=message,
-                            parse_mode='Markdown'
-                        )
-                except Exception as e:
-                    self.logger.error(f"Failed to send alert to {admin_id}: {e}")
-        
-        except Exception as e:
-            self.logger.error(f"Error in alert callback: {e}")
-
-    async def alerts_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /alerts command - show active alerts"""
-        if not self.is_authorized(update.effective_user.id):
-            return
-        
-        alerts = self.alert_manager.get_active_alerts()
-        stats = self.alert_manager.get_stats()
-        
-        if not alerts:
-            await update.message.reply_text(
-                "✅ No active alerts!\n\nAll systems operational.",
-                parse_mode='Markdown'
-            )
-            return
-        
-        response = f"""🚨 **Active Alerts** ({stats['firing']} firing)
-
-**Summary:**
-🔴 Critical: {stats['critical']}
-🟡 Warning: {stats['warning']}
-👀 Acknowledged: {stats['acknowledged']}
-🔕 Silenced: {stats['silenced']}
-
-**Alerts:**
-"""
-        
-        for alert in alerts[:10]:
-            emoji = {
-                AlertStatus.FIRING: "🚨",
-                AlertStatus.ACKNOWLEDGED: "👀",
-                AlertStatus.SILENCED: "🔕"
-            }.get(alert.status, "❓")
-            
-            duration = datetime.now() - alert.starts_at
-            minutes = int(duration.total_seconds() // 60)
-            
-            response += f"\n{emoji} **{alert.name}**\n"
-            response += f"  └ {alert.instance} • {minutes}m • `{alert.fingerprint[:8]}`\n"
-        
-        if len(alerts) > 10:
-            response += f"\n_... and {len(alerts) - 10} more_"
-        
-        response += "\n\nUse `/ack <fingerprint>` to acknowledge"
-        
-        await update.message.reply_text(response, parse_mode='Markdown')
-
-    async def ack_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /ack command - acknowledge an alert"""
-        if not self.is_authorized(update.effective_user.id):
-            return
-        
-        if not context.args:
-            await update.message.reply_text(
-                "Usage: `/ack <fingerprint>`\n\nExample: `/ack a1b2c3d4`",
-                parse_mode='Markdown'
-            )
-            return
-        
-        fingerprint = context.args[0]
-        user = update.effective_user.username or str(update.effective_user.id)
-        
-        alert = self.alert_manager.acknowledge_alert(fingerprint, user)
-        
-        if alert:
-            await update.message.reply_text(
-                f"✅ **Alert Acknowledged**\n\n"
-                f"**Alert:** {alert.name}\n"
-                f"**Instance:** {alert.instance}\n"
-                f"**Acknowledged by:** {user}\n\n"
-                f"Alert will no longer send notifications.",
-                parse_mode='Markdown'
-            )
-        else:
-            await update.message.reply_text(
-                f"❌ Alert `{fingerprint}` not found or already acknowledged.",
-                parse_mode='Markdown'
-            )
-
-    async def silence_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /silence command - silence an alert"""
-        if not self.is_authorized(update.effective_user.id):
-            return
-        
-        if not context.args:
-            await update.message.reply_text(
-                "Usage: `/silence <fingerprint> [duration_minutes]`\n\n"
-                "Example: `/silence a1b2c3d4 60`",
-                parse_mode='Markdown'
-            )
-            return
-        
-        fingerprint = context.args[0]
-        duration = int(context.args[1]) if len(context.args) > 1 else 60
-        
-        alert = self.alert_manager.silence_alert(fingerprint, duration)
-        
-        if alert:
-            await update.message.reply_text(
-                f"🔕 **Alert Silenced**\n\n"
-                f"**Alert:** {alert.name}\n"
-                f"**Instance:** {alert.instance}\n"
-                f"**Duration:** {duration} minutes\n\n"
-                f"Alert notifications suppressed for {duration}m.",
-                parse_mode='Markdown'
-            )
-        else:
-            await update.message.reply_text(
-                f"❌ Alert `{fingerprint}` not found.",
-                parse_mode='Markdown'
-            )
-
-    # === VM/CONTAINER CONTROL COMMANDS (Phase B) ===
-
-    async def start_vm_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /start_vm command - start a VM or container"""
-        if not self.is_authorized(update.effective_user.id):
-            return
-        
-        if not context.args:
-            await update.message.reply_text(
-                "Usage: `/start_vm <vmid>`\n\nExample: `/start_vm 101`",
-                parse_mode='Markdown'
-            )
-            return
-        
-        vmid = context.args[0]
-        msg = await update.message.reply_text(f"🔄 Starting VM/Container {vmid}...")
-        
-        try:
-            result = await self.infrastructure_agent.execute(f"Start VM or container {vmid}")
-            
-            if result.get("success"):
-                await msg.edit_text(
-                    f"✅ **VM/Container Started**\n\n"
-                    f"**ID:** {vmid}\n"
-                    f"**Status:** Running\n\n"
-                    f"{result.get('summary', 'Started successfully')}",
-                    parse_mode='Markdown'
-                )
-            else:
-                await msg.edit_text(
-                    f"❌ **Failed to Start**\n\n"
-                    f"**ID:** {vmid}\n"
-                    f"**Error:** {result.get('error', 'Unknown error')}",
-                    parse_mode='Markdown'
-                )
-        except Exception as e:
-            self.logger.error(f"Error starting VM: {e}")
-            await msg.edit_text(f"❌ Error: {str(e)}")
-
-    async def stop_vm_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /stop_vm command - stop a VM or container"""
-        if not self.is_authorized(update.effective_user.id):
-            return
-        
-        if not context.args:
-            await update.message.reply_text(
-                "Usage: `/stop_vm <vmid>`\n\nExample: `/stop_vm 101`",
-                parse_mode='Markdown'
-            )
-            return
-        
-        vmid = context.args[0]
-        
-        confirmation_id = f"stop_{vmid}_{update.effective_user.id}"
-        self.pending_confirmations[confirmation_id] = {
-            'action': 'stop_vm',
-            'vmid': vmid,
-            'user_id': update.effective_user.id,
-            'expires': datetime.now() + timedelta(minutes=5)
-        }
-        
-        await update.message.reply_text(
-            f"⚠️ **Confirm VM Stop**\n\n"
-            f"**ID:** {vmid}\n\n"
-            f"This will stop the VM/container.\n"
-            f"Send `/confirm {confirmation_id[:8]}` to proceed.",
-            parse_mode='Markdown'
-        )
-
-    async def restart_vm_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /restart_vm command - restart a VM or container"""
-        if not self.is_authorized(update.effective_user.id):
-            return
-        
-        if not context.args:
-            await update.message.reply_text(
-                "Usage: `/restart_vm <vmid>`\n\nExample: `/restart_vm 101`",
-                parse_mode='Markdown'
-            )
-            return
-        
-        vmid = context.args[0]
-        msg = await update.message.reply_text(f"🔄 Restarting VM/Container {vmid}...")
-        
-        try:
-            result = await self.infrastructure_agent.execute(f"Restart VM or container {vmid}")
-            
-            if result.get("success"):
-                await msg.edit_text(
-                    f"✅ **VM/Container Restarted**\n\n"
-                    f"**ID:** {vmid}\n"
-                    f"**Status:** Restarting\n\n"
-                    f"{result.get('summary', 'Restarted successfully')}",
-                    parse_mode='Markdown'
-                )
-            else:
-                await msg.edit_text(
-                    f"❌ **Failed to Restart**\n\n"
-                    f"**ID:** {vmid}\n"
-                    f"**Error:** {result.get('error', 'Unknown error')}",
-                    parse_mode='Markdown'
-                )
-        except Exception as e:
-            self.logger.error(f"Error restarting VM: {e}")
-            await msg.edit_text(f"❌ Error: {str(e)}")
-
-    async def confirm_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /confirm command - confirm destructive actions"""
-        if not self.is_authorized(update.effective_user.id):
-            return
-        
-        if not context.args:
-            await update.message.reply_text(
-                "Usage: `/confirm <confirmation_id>`",
-                parse_mode='Markdown'
-            )
-            return
-        
-        conf_prefix = context.args[0]
-        
-        confirmation = None
-        conf_id = None
-        for cid, conf in list(self.pending_confirmations.items()):
-            if cid.startswith(conf_prefix) and conf['user_id'] == update.effective_user.id:
-                confirmation = conf
-                conf_id = cid
-                break
-        
-        if not confirmation:
-            await update.message.reply_text(
-                "❌ No pending confirmation found or expired.",
-                parse_mode='Markdown'
-            )
-            return
-        
-        if datetime.now() > confirmation['expires']:
-            del self.pending_confirmations[conf_id]
-            await update.message.reply_text(
-                "❌ Confirmation expired. Please try again.",
-                parse_mode='Markdown'
-            )
-            return
-        
-        action = confirmation['action']
-        vmid = confirmation['vmid']
-        
-        del self.pending_confirmations[conf_id]
-        
-        msg = await update.message.reply_text(f"✅ Confirmed. Executing {action}...")
-        
-        try:
-            if action == 'stop_vm':
-                result = await self.infrastructure_agent.execute(f"Stop VM or container {vmid}")
-                
-                if result.get("success"):
-                    await msg.edit_text(
-                        f"✅ **VM/Container Stopped**\n\n"
-                        f"**ID:** {vmid}\n"
-                        f"**Status:** Stopped\n\n"
-                        f"{result.get('summary', 'Stopped successfully')}",
-                        parse_mode='Markdown'
-                    )
-                else:
-                    await msg.edit_text(
-                        f"❌ **Failed to Stop**\n\n"
-                        f"**ID:** {vmid}\n"
-                        f"**Error:** {result.get('error', 'Unknown error')}",
-                        parse_mode='Markdown'
-                    )
-        except Exception as e:
-            self.logger.error(f"Error executing confirmed action: {e}")
-            await msg.edit_text(f"❌ Error: {str(e)}")
-
-    # === EXISTING COMMANDS (Phases already complete) ===
 
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /start command"""
@@ -582,17 +274,6 @@ Welcome! I'm your autonomous homelab management assistant.
 **🐳 Docker Commands:**
 /docker - Docker system info
 /containers - List all containers
-
-**🚨 Alert Commands:**
-/alerts - Show active alerts
-/ack <fingerprint> - Acknowledge alert
-/silence <fingerprint> [min] - Silence alert
-
-**🎮 VM Control:**
-/start_vm <vmid> - Start VM/container
-/stop_vm <vmid> - Stop VM/container (requires confirmation)
-/restart_vm <vmid> - Restart VM/container
-/confirm <id> - Confirm destructive action
 
 **⚙️ Management:**
 /update - Update bot code
@@ -625,17 +306,6 @@ You can also send natural language requests!
 /docker - Docker system information
 /containers - List all containers with status
 
-**Alert Management:**
-/alerts - View active alerts
-/ack <fingerprint> - Acknowledge an alert
-/silence <fingerprint> [min] - Silence alert notifications
-
-**VM/Container Control:**
-/start_vm <vmid> - Start a VM or container
-/stop_vm <vmid> - Stop (requires confirmation)
-/restart_vm <vmid> - Restart a VM or container
-/confirm <id> - Confirm a destructive action
-
 **Bot Management:**
 /update - Pull latest code and restart
 /help - Show this help message
@@ -657,23 +327,21 @@ Just send me a message like:
         status_msg = await update.message.reply_text("🔄 Gathering system status...")
 
         try:
+            # Get infrastructure status
             result = await self.infrastructure_agent.monitor_resources()
 
             if result.get("success"):
+                # Parse Proxmox node data
                 proxmox_data = result.get('proxmox_node', '')
                 proxmox_formatted = self.parse_proxmox_node_status(proxmox_data)
 
+                # Parse Docker data
                 docker_data = result.get('docker', '')
                 docker_formatted = self.parse_docker_info(docker_data)
 
+                # Bot uptime
                 uptime_delta = datetime.now() - self.start_time
                 bot_uptime = self.format_uptime(int(uptime_delta.total_seconds()))
-
-                # Get alert stats
-                alert_stats = self.alert_manager.get_stats()
-                alert_summary = ""
-                if alert_stats['firing'] > 0:
-                    alert_summary = f"\n\n🚨 **Alerts:** {alert_stats['firing']} active (🔴 {alert_stats['critical']} critical)"
 
                 response = f"""📊 **System Status Report**
 🕐 {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}
@@ -684,7 +352,7 @@ Just send me a message like:
 
 🤖 **Bot Status**
 **Uptime:** {bot_uptime}
-**Health:** 🟢 Operational{alert_summary}
+**Health:** 🟢 Operational
                 """
 
                 await status_msg.edit_text(response, parse_mode='Markdown')
@@ -715,6 +383,7 @@ Getting system uptime..."""
 
             msg = await update.message.reply_text(response, parse_mode='Markdown')
 
+            # Get system uptime from Proxmox
             result = await self.infrastructure_agent.monitor_resources()
             if result.get("success"):
                 node_data = self.parse_json_response(result.get('proxmox_node', ''))
@@ -761,6 +430,7 @@ Getting system uptime..."""
             result = await self.infrastructure_agent.execute("List all VMs and containers with detailed status")
 
             if result.get("success"):
+                # Try to get formatted data from data_collected
                 vms_data = result.get("data_collected", {}).get("vms", "")
                 formatted = self.parse_vm_list(vms_data)
 
@@ -832,6 +502,7 @@ Getting system uptime..."""
             result = await self.infrastructure_agent.monitor_resources()
 
             if result.get("success"):
+                # Parse both Proxmox and Docker data
                 proxmox_data = result.get('proxmox_node', '')
                 docker_data = result.get('docker', '')
 
@@ -864,6 +535,7 @@ Getting system uptime..."""
         msg = await update.message.reply_text("🏗️ Gathering infrastructure overview...")
 
         try:
+            # Get comprehensive infrastructure data
             result = await self.infrastructure_agent.execute("Show comprehensive infrastructure overview")
 
             if result.get("success"):
@@ -897,6 +569,7 @@ Use these commands for details:
         msg = await update.message.reply_text("🔄 Updating bot code...")
 
         try:
+            # Run git pull
             result = subprocess.run(
                 ["git", "pull"],
                 cwd="/root/homelab-agents",
@@ -917,8 +590,10 @@ Use these commands for details:
 
 🔄 Restarting bot in 3 seconds...""")
 
+                    # Give time for message to be sent
                     await asyncio.sleep(3)
 
+                    # Restart via systemd
                     subprocess.run(
                         ["systemctl", "restart", "homelab-telegram-bot"],
                         timeout=10
@@ -941,15 +616,18 @@ Use these commands for details:
         msg = await update.message.reply_text("🤔 Processing your request...")
 
         try:
+            # Use infrastructure agent to process natural language request
             result = await self.infrastructure_agent.execute(message_text)
 
             if result.get("success"):
                 summary = result.get('summary', 'Task completed successfully')
                 response = f"✅ {summary}"
 
+                # Add formatted data if available
                 if result.get("data_collected"):
                     response += "\n\n📋 **Results:**"
                     for key, value in result["data_collected"].items():
+                        # Try to format based on data type
                         if key == "vms":
                             formatted = self.parse_vm_list(value)
                             response += f"\n\n{formatted}"
@@ -960,6 +638,7 @@ Use these commands for details:
                             formatted = self.parse_proxmox_node_status(value)
                             response += f"\n\n{formatted}"
                         else:
+                            # Generic text formatting
                             response += f"\n\n**{key.title()}:**\n{self._format_text_data(value)}"
 
                 await msg.edit_text(response, parse_mode='Markdown')
@@ -976,69 +655,37 @@ Use these commands for details:
         """Handle errors"""
         self.logger.error(f"Update {update} caused error {context.error}")
 
-    async def run_async(self):
-        """Async run method with webhook server"""
-        try:
-            # Start webhook server
-            await self.webhook_server.start()
-            self.logger.info("Webhook server started on port 8001")
-            
-            # Create application
-            self.application = Application.builder().token(self.token).build()
-            
-            # Add command handlers
-            self.application.add_handler(CommandHandler("start", self.start_command))
-            self.application.add_handler(CommandHandler("help", self.help_command))
-            self.application.add_handler(CommandHandler("status", self.status_command))
-            self.application.add_handler(CommandHandler("uptime", self.uptime_command))
-            self.application.add_handler(CommandHandler("node", self.node_command))
-            self.application.add_handler(CommandHandler("vms", self.vms_command))
-            self.application.add_handler(CommandHandler("docker", self.docker_command))
-            self.application.add_handler(CommandHandler("containers", self.containers_command))
-            self.application.add_handler(CommandHandler("monitor", self.monitor_command))
-            self.application.add_handler(CommandHandler("infra", self.infra_command))
-            self.application.add_handler(CommandHandler("update", self.update_command))
-            
-            # Alert commands (Phase A)
-            self.application.add_handler(CommandHandler("alerts", self.alerts_command))
-            self.application.add_handler(CommandHandler("ack", self.ack_command))
-            self.application.add_handler(CommandHandler("silence", self.silence_command))
-            
-            # VM control commands (Phase B)
-            self.application.add_handler(CommandHandler("start_vm", self.start_vm_command))
-            self.application.add_handler(CommandHandler("stop_vm", self.stop_vm_command))
-            self.application.add_handler(CommandHandler("restart_vm", self.restart_vm_command))
-            self.application.add_handler(CommandHandler("confirm", self.confirm_command))
-            
-            # Natural language handler
-            self.application.add_handler(
-                MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message)
-            )
-            
-            # Error handler
-            self.application.add_error_handler(self.error_handler)
-            
-            # Initialize and start bot
-            await self.application.initialize()
-            await self.application.start()
-            await self.application.updater.start_polling(allowed_updates=Update.ALL_TYPES)
-            
-            self.logger.info("Telegram bot is running with alert integration...")
-            
-            # Keep running
-            await asyncio.Event().wait()
-            
-        except Exception as e:
-            self.logger.error(f"Error in bot run: {e}")
-            raise
-        finally:
-            if self.webhook_server:
-                await self.webhook_server.stop()
-
     def run(self):
-        """Start the Telegram bot and webhook server"""
-        self.logger.info("Starting Telegram bot with webhook server...")
-        asyncio.run(self.run_async())
+        """Start the Telegram bot"""
+        self.logger.info("Starting Telegram bot...")
+
+        # Create application
+        application = Application.builder().token(self.token).build()
+
+        # Add command handlers
+        application.add_handler(CommandHandler("start", self.start_command))
+        application.add_handler(CommandHandler("help", self.help_command))
+        application.add_handler(CommandHandler("status", self.status_command))
+        application.add_handler(CommandHandler("uptime", self.uptime_command))
+        application.add_handler(CommandHandler("node", self.node_command))
+        application.add_handler(CommandHandler("vms", self.vms_command))
+        application.add_handler(CommandHandler("docker", self.docker_command))
+        application.add_handler(CommandHandler("containers", self.containers_command))
+        application.add_handler(CommandHandler("monitor", self.monitor_command))
+        application.add_handler(CommandHandler("infra", self.infra_command))
+        application.add_handler(CommandHandler("update", self.update_command))
+
+        # Add message handler for natural language
+        application.add_handler(
+            MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message)
+        )
+
+        # Add error handler
+        application.add_error_handler(self.error_handler)
+
+        # Start bot
+        self.logger.info("Telegram bot is running...")
+        application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
 def main():
