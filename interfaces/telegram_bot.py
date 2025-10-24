@@ -35,6 +35,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from agents.infrastructure_agent import InfrastructureAgent
 from agents.monitoring_agent import MonitoringAgent
+from agents.network_agent import NetworkAgent
 from shared.config import config
 from shared.logging import get_logger
 from shared.metrics import start_metrics_server, get_metrics_collector
@@ -66,6 +67,7 @@ class TelegramBotInterface:
         # Initialize agents
         self.infrastructure_agent = InfrastructureAgent()
         self.monitoring_agent = MonitoringAgent()
+        self.network_agent = NetworkAgent()
 
         # Initialize alert system
         self.alert_manager = get_alert_manager()
@@ -721,6 +723,125 @@ class TelegramBotInterface:
             parse_mode='Markdown'
         )
 
+    # === NETWORK MONITORING COMMANDS (Phase E) ===
+
+    async def network_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /network command - comprehensive network status"""
+        if not self.is_authorized(update.effective_user.id):
+            return
+
+        msg = await update.message.reply_text("🌐 Getting network status...")
+
+        try:
+            status = await self.network_agent.get_network_status()
+
+            if status.get("success"):
+                network_data = status.get("network", {})
+                services = status.get("services", {})
+
+                response = "🌐 **Network Status**\n\n"
+                response += f"**Overall:** {network_data.get('status', 'Unknown').title()}\n"
+                response += f"**Connected Devices:** {network_data.get('connected_devices', 0)}\n"
+                response += f"**Bandwidth:** {network_data.get('current_usage_mbps', 0):.1f} / {network_data.get('total_bandwidth_mbps', 0)} Mbps\n"
+                response += f"**Uptime:** {network_data.get('uptime_hours', 0):.1f} hours\n\n"
+
+                response += "**Services:**\n"
+                for service, state in services.items():
+                    emoji = "✅" if state == "available" else "⭕"
+                    response += f"{emoji} {service.title()}: {state}\n"
+
+                if status.get("message"):
+                    response += f"\n_{status.get('message')}_"
+
+                await msg.edit_text(response, parse_mode='Markdown')
+            else:
+                await msg.edit_text(
+                    f"❌ Error: {status.get('error', 'Unknown error')}",
+                    parse_mode='Markdown'
+                )
+
+        except Exception as e:
+            self.logger.error(f"Error in network command: {e}")
+            await msg.edit_text(f"❌ Error: {str(e)}")
+
+    async def devices_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /devices command - list connected network devices"""
+        if not self.is_authorized(update.effective_user.id):
+            return
+
+        msg = await update.message.reply_text("📱 Getting connected devices...")
+
+        try:
+            devices_data = await self.network_agent.get_connected_devices()
+
+            if devices_data.get("success"):
+                total = devices_data.get("total_devices", 0)
+                devices = devices_data.get("devices", [])
+
+                response = f"📱 **Connected Devices** ({total})\n\n"
+
+                if not devices:
+                    response += "No devices found\n\n"
+                else:
+                    for device in devices[:20]:  # Limit to 20 devices
+                        name = device.get("name", "Unknown")
+                        ip = device.get("ip_address", "N/A")
+                        conn_type = device.get("connection_type", "unknown")
+                        emoji = "📡" if conn_type == "wireless" else "🔌"
+
+                        response += f"{emoji} **{name}**\n"
+                        response += f"    IP: `{ip}`\n"
+                        response += f"    Type: {conn_type}\n\n"
+
+                    if total > 20:
+                        response += f"_... and {total - 20} more devices_\n\n"
+
+                if devices_data.get("message"):
+                    response += f"_{devices_data.get('message')}_"
+
+                await msg.edit_text(response, parse_mode='Markdown')
+            else:
+                await msg.edit_text(
+                    f"❌ Error: {devices_data.get('error', 'Unknown error')}",
+                    parse_mode='Markdown'
+                )
+
+        except Exception as e:
+            self.logger.error(f"Error in devices command: {e}")
+            await msg.edit_text(f"❌ Error: {str(e)}")
+
+    async def bandwidth_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /bandwidth command - show bandwidth usage"""
+        if not self.is_authorized(update.effective_user.id):
+            return
+
+        msg = await update.message.reply_text("📊 Getting bandwidth statistics...")
+
+        try:
+            stats = await self.network_agent.get_bandwidth_stats()
+
+            if stats.get("success"):
+                bandwidth = stats.get("bandwidth", {})
+
+                response = "📊 **Bandwidth Usage**\n\n"
+                response += f"⬇️ Download: {bandwidth.get('download_mbps', 0):.1f} Mbps\n"
+                response += f"⬆️ Upload: {bandwidth.get('upload_mbps', 0):.1f} Mbps\n"
+                response += f"📈 Total: {bandwidth.get('total_mbps', 0):.1f} Mbps\n\n"
+
+                if stats.get("message"):
+                    response += f"_{stats.get('message')}_"
+
+                await msg.edit_text(response, parse_mode='Markdown')
+            else:
+                await msg.edit_text(
+                    f"❌ Error: {stats.get('error', 'Unknown error')}",
+                    parse_mode='Markdown'
+                )
+
+        except Exception as e:
+            self.logger.error(f"Error in bandwidth command: {e}")
+            await msg.edit_text(f"❌ Error: {str(e)}")
+
     # === EXISTING COMMANDS (Phases already complete) ===
 
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -811,6 +932,11 @@ You can also send natural language requests!
 /schedule - View report schedule configuration
 /schedule_enable <daily|weekly> - Enable a report
 /schedule_disable <daily|weekly> - Disable a report
+
+**Network Monitoring:**
+/network - Comprehensive network status
+/devices - List connected network devices
+/bandwidth - Current bandwidth usage statistics
 
 **Bot Management:**
 /update - Pull latest code and restart
@@ -1214,6 +1340,11 @@ Use these commands for details:
             self.application.add_handler(CommandHandler("schedule", self.schedule_command))
             self.application.add_handler(CommandHandler("schedule_enable", self.schedule_enable_command))
             self.application.add_handler(CommandHandler("schedule_disable", self.schedule_disable_command))
+
+            # Network monitoring commands (Phase E)
+            self.application.add_handler(CommandHandler("network", self.network_command))
+            self.application.add_handler(CommandHandler("devices", self.devices_command))
+            self.application.add_handler(CommandHandler("bandwidth", self.bandwidth_command))
 
             # Natural language handler
             self.application.add_handler(
