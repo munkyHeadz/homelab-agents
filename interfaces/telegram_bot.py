@@ -39,6 +39,7 @@ from shared.config import config
 from shared.logging import get_logger
 from shared.metrics import start_metrics_server, get_metrics_collector
 from shared.alert_manager import get_alert_manager, Alert, AlertStatus
+from shared.report_scheduler import get_report_scheduler
 from interfaces.webhook_server import WebhookServer
 
 logger = get_logger(__name__)
@@ -70,10 +71,13 @@ class TelegramBotInterface:
         self.alert_manager = get_alert_manager()
         self.webhook_server = WebhookServer(port=8001, alert_callback=self.on_alert_received)
 
+        # Initialize report scheduler (callback set later in run_async)
+        self.report_scheduler = get_report_scheduler()
+
         # Pending confirmations for destructive actions
         self.pending_confirmations = {}
 
-        self.logger.info("Telegram bot interface initialized with alert integration")
+        self.logger.info("Telegram bot interface initialized with alert integration and scheduled reports")
 
     def is_authorized(self, user_id: int) -> bool:
         """Check if user is authorized to use the bot"""
@@ -578,6 +582,145 @@ class TelegramBotInterface:
             self.logger.error(f"Error executing confirmed action: {e}")
             await msg.edit_text(f"❌ Error: {str(e)}")
 
+    # === SCHEDULED REPORTS COMMANDS (Phase D) ===
+
+    async def daily_report_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /daily_report command - generate daily summary on demand"""
+        if not self.is_authorized(update.effective_user.id):
+            return
+
+        msg = await update.message.reply_text("📊 Generating daily summary report...")
+
+        try:
+            report = await self.report_scheduler.generate_daily_summary(
+                self.infrastructure_agent,
+                self.monitoring_agent
+            )
+            await msg.edit_text(report, parse_mode='Markdown')
+        except Exception as e:
+            self.logger.error(f"Error in daily_report command: {e}")
+            await msg.edit_text(f"❌ Error: {str(e)}")
+
+    async def weekly_report_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /weekly_report command - generate weekly trends on demand"""
+        if not self.is_authorized(update.effective_user.id):
+            return
+
+        msg = await update.message.reply_text("📈 Generating weekly trends report...")
+
+        try:
+            report = await self.report_scheduler.generate_weekly_trends(
+                self.infrastructure_agent,
+                self.monitoring_agent
+            )
+            await msg.edit_text(report, parse_mode='Markdown')
+        except Exception as e:
+            self.logger.error(f"Error in weekly_report command: {e}")
+            await msg.edit_text(f"❌ Error: {str(e)}")
+
+    async def schedule_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /schedule command - view and configure scheduled reports"""
+        if not self.is_authorized(update.effective_user.id):
+            return
+
+        config = self.report_scheduler.get_config()
+
+        response = "⏰ **Scheduled Reports Configuration**\n\n"
+
+        # Daily summary
+        daily_enabled = config['enabled'].get('daily_summary', False)
+        daily_schedule = config['schedules'].get('daily_summary', 'Not set')
+        daily_last = config['last_runs'].get('daily_summary')
+
+        response += f"**📊 Daily System Summary**\n"
+        response += f"Status: {'✅ Enabled' if daily_enabled else '⭕ Disabled'}\n"
+        response += f"Schedule: {daily_schedule}\n"
+        if daily_last:
+            response += f"Last run: {daily_last.strftime('%Y-%m-%d %H:%M UTC')}\n"
+        response += "\n"
+
+        # Weekly trends
+        weekly_enabled = config['enabled'].get('weekly_trends', False)
+        weekly_schedule = config['schedules'].get('weekly_trends', 'Not set')
+        weekly_last = config['last_runs'].get('weekly_trends')
+
+        response += f"**📈 Weekly Resource Trends**\n"
+        response += f"Status: {'✅ Enabled' if weekly_enabled else '⭕ Disabled'}\n"
+        response += f"Schedule: {weekly_schedule}\n"
+        if weekly_last:
+            response += f"Last run: {weekly_last.strftime('%Y-%m-%d %H:%M UTC')}\n"
+        response += "\n"
+
+        response += "**Commands:**\n"
+        response += "`/daily_report` - Generate daily summary now\n"
+        response += "`/weekly_report` - Generate weekly trends now\n"
+        response += "`/schedule_enable <daily|weekly>` - Enable report\n"
+        response += "`/schedule_disable <daily|weekly>` - Disable report"
+
+        await update.message.reply_text(response, parse_mode='Markdown')
+
+    async def schedule_enable_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /schedule_enable command - enable a scheduled report"""
+        if not self.is_authorized(update.effective_user.id):
+            return
+
+        if not context.args:
+            await update.message.reply_text(
+                "Usage: `/schedule_enable <daily|weekly>`\n\nExample: `/schedule_enable daily`",
+                parse_mode='Markdown'
+            )
+            return
+
+        report_type = context.args[0].lower()
+        type_map = {
+            'daily': 'daily_summary',
+            'weekly': 'weekly_trends'
+        }
+
+        if report_type not in type_map:
+            await update.message.reply_text(
+                "❌ Invalid report type. Use `daily` or `weekly`",
+                parse_mode='Markdown'
+            )
+            return
+
+        self.report_scheduler.enable_report(type_map[report_type], True)
+        await update.message.reply_text(
+            f"✅ {report_type.title()} reports enabled",
+            parse_mode='Markdown'
+        )
+
+    async def schedule_disable_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /schedule_disable command - disable a scheduled report"""
+        if not self.is_authorized(update.effective_user.id):
+            return
+
+        if not context.args:
+            await update.message.reply_text(
+                "Usage: `/schedule_disable <daily|weekly>`\n\nExample: `/schedule_disable weekly`",
+                parse_mode='Markdown'
+            )
+            return
+
+        report_type = context.args[0].lower()
+        type_map = {
+            'daily': 'daily_summary',
+            'weekly': 'weekly_trends'
+        }
+
+        if report_type not in type_map:
+            await update.message.reply_text(
+                "❌ Invalid report type. Use `daily` or `weekly`",
+                parse_mode='Markdown'
+            )
+            return
+
+        self.report_scheduler.enable_report(type_map[report_type], False)
+        await update.message.reply_text(
+            f"⭕ {report_type.title()} reports disabled",
+            parse_mode='Markdown'
+        )
+
     # === EXISTING COMMANDS (Phases already complete) ===
 
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -661,6 +804,13 @@ You can also send natural language requests!
 /stop_vm <vmid> - Stop (requires confirmation)
 /restart_vm <vmid> - Restart a VM or container
 /confirm <id> - Confirm a destructive action
+
+**Scheduled Reports:**
+/daily_report - Generate daily system summary
+/weekly_report - Generate weekly trends report
+/schedule - View report schedule configuration
+/schedule_enable <daily|weekly> - Enable a report
+/schedule_disable <daily|weekly> - Disable a report
 
 **Bot Management:**
 /update - Pull latest code and restart
@@ -1002,6 +1152,28 @@ Use these commands for details:
         """Handle errors"""
         self.logger.error(f"Update {update} caused error {context.error}")
 
+    async def _run_daily_report(self, context):
+        """Job queue callback for daily report"""
+        try:
+            await self.report_scheduler.run_daily_summary(
+                self.infrastructure_agent,
+                self.monitoring_agent,
+                self.allowed_users
+            )
+        except Exception as e:
+            self.logger.error(f"Error running scheduled daily report: {e}")
+
+    async def _run_weekly_report(self, context):
+        """Job queue callback for weekly report"""
+        try:
+            await self.report_scheduler.run_weekly_trends(
+                self.infrastructure_agent,
+                self.monitoring_agent,
+                self.allowed_users
+            )
+        except Exception as e:
+            self.logger.error(f"Error running scheduled weekly report: {e}")
+
     async def run_async(self):
         """Async run method with webhook server"""
         try:
@@ -1035,7 +1207,14 @@ Use these commands for details:
             self.application.add_handler(CommandHandler("stop_vm", self.stop_vm_command))
             self.application.add_handler(CommandHandler("restart_vm", self.restart_vm_command))
             self.application.add_handler(CommandHandler("confirm", self.confirm_command))
-            
+
+            # Scheduled reports commands (Phase D)
+            self.application.add_handler(CommandHandler("daily_report", self.daily_report_command))
+            self.application.add_handler(CommandHandler("weekly_report", self.weekly_report_command))
+            self.application.add_handler(CommandHandler("schedule", self.schedule_command))
+            self.application.add_handler(CommandHandler("schedule_enable", self.schedule_enable_command))
+            self.application.add_handler(CommandHandler("schedule_disable", self.schedule_disable_command))
+
             # Natural language handler
             self.application.add_handler(
                 MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message)
@@ -1048,9 +1227,42 @@ Use these commands for details:
             await self.application.initialize()
             await self.application.start()
             await self.application.updater.start_polling(allowed_updates=Update.ALL_TYPES)
-            
-            self.logger.info("Telegram bot is running with alert integration...")
-            
+
+            # Set up report scheduler callback
+            async def send_report_message(chat_id, text, parse_mode):
+                """Send report message via bot"""
+                try:
+                    await self.application.bot.send_message(
+                        chat_id=chat_id,
+                        text=text,
+                        parse_mode=parse_mode
+                    )
+                except Exception as e:
+                    self.logger.error(f"Failed to send report to {chat_id}: {e}")
+
+            self.report_scheduler.send_message_callback = send_report_message
+
+            # Schedule daily reports (8 AM UTC)
+            if self.application.job_queue:
+                from datetime import time
+                self.application.job_queue.run_daily(
+                    self._run_daily_report,
+                    time=time(hour=8, minute=0),
+                    name='daily_report'
+                )
+                self.logger.info("Daily report scheduled for 08:00 UTC")
+
+                # Schedule weekly reports (Monday 9 AM UTC)
+                self.application.job_queue.run_daily(
+                    self._run_weekly_report,
+                    days=(0,),  # Monday
+                    time=time(hour=9, minute=0),
+                    name='weekly_report'
+                )
+                self.logger.info("Weekly report scheduled for Monday 09:00 UTC")
+
+            self.logger.info("Telegram bot is running with alert integration and scheduled reports...")
+
             # Keep running
             await asyncio.Event().wait()
             
