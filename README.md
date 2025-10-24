@@ -89,7 +89,7 @@ This system provides intelligent, autonomous management of homelab infrastructur
 
 1. **Clone repository**
    ```bash
-   git clone https://github.com/yourusername/homelab-agents.git
+   git clone https://github.com/munkyHeadz/homelab-agents.git
    cd homelab-agents
    ```
 
