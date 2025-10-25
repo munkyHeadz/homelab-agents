@@ -856,15 +856,26 @@ class TelegramBotInterface:
         try:
             # Use AdGuard client directly if available
             if self.network_agent.adguard_client:
+                # Login (required for cloud API OAuth, no-op for Home basic auth)
+                await self.network_agent.adguard_client.login()
+
                 stats = await self.network_agent.adguard_client.get_stats()
                 top_blocked = await self.network_agent.adguard_client.get_top_blocked_domains(limit=5)
+
+                # Close session
+                await self.network_agent.adguard_client.close()
 
                 if stats:
                     response = "🛡️ **DNS/AdGuard Statistics**\n\n"
                     response += f"**Total Queries:** {stats.get('total_queries', 0):,}\n"
                     response += f"**Blocked Queries:** {stats.get('blocked_queries', 0):,}\n"
                     response += f"**Blocked %:** {stats.get('blocked_percentage', 0):.2f}%\n"
-                    response += f"**Avg Processing:** {stats.get('avg_processing_time_ms', 0):.2f}ms\n\n"
+
+                    # Only show avg processing time if available (not in cloud API)
+                    if stats.get('avg_processing_time_ms', 0) > 0:
+                        response += f"**Avg Processing:** {stats.get('avg_processing_time_ms', 0):.2f}ms\n"
+
+                    response += "\n"
 
                     if top_blocked:
                         response += "**Top Blocked Domains:**\n"

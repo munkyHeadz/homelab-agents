@@ -54,12 +54,14 @@ class NetworkAgent:
 
         if config.adguard.enabled:
             self.adguard_client = AdGuardClient(
-                host=config.adguard.host,
-                port=config.adguard.port,
+                use_cloud_api=config.adguard.use_cloud_api,
                 username=config.adguard.username,
-                password=config.adguard.password
+                password=config.adguard.password,
+                host=config.adguard.host,
+                port=config.adguard.port
             )
-            self.logger.info("AdGuard integration enabled")
+            api_type = "AdGuard DNS (cloud)" if config.adguard.use_cloud_api else "AdGuard Home"
+            self.logger.info(f"AdGuard integration enabled ({api_type})")
 
         self.logger.info("Network agent initialized", model=self.model)
 
@@ -118,11 +120,16 @@ class NetworkAgent:
             # Check AdGuard status if available
             if self.adguard_client:
                 try:
+                    # Login for cloud API (OAuth token), no-op for Home (basic auth)
+                    await self.adguard_client.login()
+
                     filter_status = await self.adguard_client.get_filtering_status()
                     if filter_status:
                         status["services"]["adguard"] = "available"
                         if not filter_status.get("enabled"):
                             status["services"]["adguard"] = "disabled"
+
+                    await self.adguard_client.close()
                 except Exception as e:
                     self.logger.error(f"Error getting AdGuard status: {e}")
                     status["services"]["adguard"] = "error"

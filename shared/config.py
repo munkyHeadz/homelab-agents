@@ -214,12 +214,34 @@ class UnifiConfig(BaseSettings):
 
 
 class AdGuardConfig(BaseSettings):
-    """AdGuard Home configuration"""
+    """AdGuard configuration
+
+    Supports both AdGuard DNS (cloud) and AdGuard Home (self-hosted)
+
+    AdGuard DNS (cloud):
+        use_cloud_api: Set to True
+        username: Your AdGuard account email
+        password: Your AdGuard account password
+
+    AdGuard Home (self-hosted):
+        use_cloud_api: Set to False (default)
+        host: AdGuard Home hostname or IP
+        port: AdGuard Home port (default 80)
+        username: Admin username
+        password: Admin password
+    """
     enabled: bool = Field(default=False, alias="ADGUARD_ENABLED")
-    host: str = Field(default="adguard.local", alias="ADGUARD_HOST")
-    port: int = Field(default=80, alias="ADGUARD_PORT")
+
+    # Cloud API settings
+    use_cloud_api: bool = Field(default=False, alias="ADGUARD_USE_CLOUD_API")
+
+    # Shared settings (username/password used by both)
     username: str = Field(default="", alias="ADGUARD_USERNAME")
     password: str = Field(default="", alias="ADGUARD_PASSWORD")
+
+    # AdGuard Home settings (self-hosted)
+    host: str = Field(default="adguard.local", alias="ADGUARD_HOST")
+    port: int = Field(default=80, alias="ADGUARD_PORT")
 
 
 class Config(BaseSettings):
