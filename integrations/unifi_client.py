@@ -139,35 +139,62 @@ class UnifiClient:
         try:
             await self._ensure_session()
 
+            # Cloud API uses /devices endpoint, local uses /api/s/{site}/stat/sta
+            if self.use_cloud_api:
+                endpoint = "/devices"
+            else:
+                endpoint = f"/api/s/{self.site}/stat/sta"
+
             async with self.session.get(
-                f"{self.base_url}/api/s/{self.site}/stat/sta",
+                f"{self.base_url}{endpoint}",
                 ssl=False if not self.verify_ssl else None
             ) as response:
                 if response.status == 200:
                     data = await response.json()
-                    clients = data.get("data", [])
 
-                    self.logger.info(f"Retrieved {len(clients)} connected clients")
+                    # Cloud API has different structure
+                    if self.use_cloud_api:
+                        # Extract devices from cloud API response
+                        devices = []
+                        for host_data in data.get("data", []):
+                            for device in host_data.get("devices", []):
+                                devices.append({
+                                    "name": device.get("name", "Unknown"),
+                                    "ip_address": device.get("ip", "N/A"),
+                                    "mac_address": device.get("mac", "N/A"),
+                                    "connection_type": "wired",  # Cloud API doesn't distinguish
+                                    "last_seen": device.get("adoptionTime", ""),
+                                    "status": device.get("status", "unknown"),
+                                    "model": device.get("model", ""),
+                                    "version": device.get("version", ""),
+                                    "uptime": 0  # Not available in cloud API
+                                })
+                        self.logger.info(f"Retrieved {len(devices)} network devices")
+                        return devices
+                    else:
+                        # Local controller API structure
+                        clients = data.get("data", [])
+                        self.logger.info(f"Retrieved {len(clients)} connected clients")
 
-                    # Format client data
-                    formatted_clients = []
-                    for client in clients:
-                        formatted_clients.append({
-                            "name": client.get("hostname", client.get("name", "Unknown")),
-                            "ip_address": client.get("ip", "N/A"),
-                            "mac_address": client.get("mac", "N/A"),
-                            "connection_type": "wireless" if client.get("is_wired") == False else "wired",
-                            "last_seen": datetime.fromtimestamp(
-                                client.get("last_seen", 0),
-                                tz=timezone.utc
-                            ).isoformat(),
-                            "rx_bytes": client.get("rx_bytes", 0),
-                            "tx_bytes": client.get("tx_bytes", 0),
-                            "signal": client.get("signal", 0),
-                            "uptime": client.get("uptime", 0)
-                        })
+                        # Format client data
+                        formatted_clients = []
+                        for client in clients:
+                            formatted_clients.append({
+                                "name": client.get("hostname", client.get("name", "Unknown")),
+                                "ip_address": client.get("ip", "N/A"),
+                                "mac_address": client.get("mac", "N/A"),
+                                "connection_type": "wireless" if client.get("is_wired") == False else "wired",
+                                "last_seen": datetime.fromtimestamp(
+                                    client.get("last_seen", 0),
+                                    tz=timezone.utc
+                                ).isoformat(),
+                                "rx_bytes": client.get("rx_bytes", 0),
+                                "tx_bytes": client.get("tx_bytes", 0),
+                                "signal": client.get("signal", 0),
+                                "uptime": client.get("uptime", 0)
+                            })
 
-                    return formatted_clients
+                        return formatted_clients
                 else:
                     self.logger.error(f"Failed to get clients: {response.status}")
                     return []
@@ -186,47 +213,89 @@ class UnifiClient:
         try:
             await self._ensure_session()
 
-            async with self.session.get(
-                f"{self.base_url}/api/s/{self.site}/stat/health",
-                ssl=False if not self.verify_ssl else None
-            ) as response:
-                if response.status == 200:
-                    data = await response.json()
-                    health_data = data.get("data", [])
+            # Cloud API uses /hosts/{id} and /devices, local uses /api/s/{site}/stat/health
+            if self.use_cloud_api:
+                # Get host info for basic stats
+                host_endpoint = f"/hosts/{self.site_id}"
+                devices_endpoint = "/devices"
 
-                    stats = {
-                        "status": "healthy",
-                        "connected_devices": 0,
-                        "uptime_hours": 0,
-                        "wan": {},
-                        "lan": {}
-                    }
+                stats = {
+                    "status": "healthy",
+                    "connected_devices": 0,
+                    "uptime_hours": 0,
+                    "wan": {},
+                    "lan": {}
+                }
 
-                    for item in health_data:
-                        subsystem = item.get("subsystem", "")
+                # Get devices to count them
+                async with self.session.get(f"{self.base_url}{devices_endpoint}") as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        device_count = 0
+                        for host_data in data.get("data", []):
+                            devices = host_data.get("devices", [])
+                            device_count += len(devices)
 
-                        if subsystem == "wan":
-                            stats["wan"] = {
-                                "status": item.get("status", "unknown"),
-                                "uptime": item.get("uptime", 0),
-                                "rx_bytes": item.get("rx_bytes-r", 0),
-                                "tx_bytes": item.get("tx_bytes-r", 0)
-                            }
-                            stats["uptime_hours"] = item.get("uptime", 0) / 3600
+                            # Calculate uptime from devices
+                            for device in devices:
+                                if device.get("startupTime"):
+                                    try:
+                                        startup = datetime.fromisoformat(device["startupTime"].replace('Z', '+00:00'))
+                                        uptime_seconds = (datetime.now(timezone.utc) - startup).total_seconds()
+                                        if uptime_seconds > 0:
+                                            stats["uptime_hours"] = max(stats["uptime_hours"], uptime_seconds / 3600)
+                                    except:
+                                        pass
 
-                        elif subsystem == "lan":
-                            stats["lan"] = {
-                                "num_user": item.get("num_user", 0),
-                                "num_guest": item.get("num_guest", 0)
-                            }
-                            stats["connected_devices"] = item.get("num_user", 0) + item.get("num_guest", 0)
+                        stats["connected_devices"] = device_count
+                        stats["status"] = "healthy" if device_count > 0 else "unknown"
 
-                    self.logger.info("Retrieved network stats from Unifi")
-                    return stats
+                self.logger.info("Retrieved network stats from Unifi Cloud API")
+                return stats
 
-                else:
-                    self.logger.error(f"Failed to get network stats: {response.status}")
-                    return {}
+            else:
+                # Local controller API
+                async with self.session.get(
+                    f"{self.base_url}/api/s/{self.site}/stat/health",
+                    ssl=False if not self.verify_ssl else None
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        health_data = data.get("data", [])
+
+                        stats = {
+                            "status": "healthy",
+                            "connected_devices": 0,
+                            "uptime_hours": 0,
+                            "wan": {},
+                            "lan": {}
+                        }
+
+                        for item in health_data:
+                            subsystem = item.get("subsystem", "")
+
+                            if subsystem == "wan":
+                                stats["wan"] = {
+                                    "status": item.get("status", "unknown"),
+                                    "uptime": item.get("uptime", 0),
+                                    "rx_bytes": item.get("rx_bytes-r", 0),
+                                    "tx_bytes": item.get("tx_bytes-r", 0)
+                                }
+                                stats["uptime_hours"] = item.get("uptime", 0) / 3600
+
+                            elif subsystem == "lan":
+                                stats["lan"] = {
+                                    "num_user": item.get("num_user", 0),
+                                    "num_guest": item.get("num_guest", 0)
+                                }
+                                stats["connected_devices"] = item.get("num_user", 0) + item.get("num_guest", 0)
+
+                        self.logger.info("Retrieved network stats from Unifi")
+                        return stats
+
+                    else:
+                        self.logger.error(f"Failed to get network stats: {response.status}")
+                        return {}
 
         except Exception as e:
             self.logger.error(f"Error getting network stats: {e}")
