@@ -74,8 +74,8 @@ class UnifiClient:
             headers = {}
 
             if self.use_cloud_api and self.api_key:
-                # Cloud API uses Bearer token authentication
-                headers["Authorization"] = f"Bearer {self.api_key}"
+                # Cloud API uses X-API-Key header authentication
+                headers["X-API-Key"] = self.api_key
                 headers["Content-Type"] = "application/json"
 
             connector = aiohttp.TCPConnector(ssl=ssl.SSLContext() if not self.verify_ssl else None)
