@@ -1,11 +1,13 @@
 """
-Unifi Controller API Client
+Unifi Site Manager API Client
 
-Integrates with Unifi Controller to fetch:
+Integrates with Unifi Site Manager API (cloud-based) to fetch:
 - Connected devices/clients
 - Network statistics
 - Bandwidth usage
 - Device health
+
+Documentation: https://developer.ui.com/site-manager-api
 """
 
 import aiohttp
@@ -20,28 +22,48 @@ logger = get_logger(__name__)
 
 
 class UnifiClient:
-    """Client for Unifi Controller API"""
+    """Client for Unifi Site Manager API (cloud-based with API key)"""
 
-    def __init__(self, host: str, port: int = 443, username: str = "", password: str = "",
+    def __init__(self, api_key: str = "", site_id: str = "",
+                 use_cloud_api: bool = True,
+                 host: str = "", port: int = 443,
+                 username: str = "", password: str = "",
                  site: str = "default", verify_ssl: bool = False):
         """
         Initialize Unifi client
 
-        Args:
+        Supports both Cloud API (recommended) and Local Controller API
+
+        Cloud API (recommended):
+            api_key: Your Unifi API key from console.ui.com
+            site_id: Your site ID (found in console URL)
+            use_cloud_api: Set to True (default)
+
+        Local Controller API (legacy):
             host: Controller hostname or IP
             port: Controller port (default 443)
             username: Admin username
             password: Admin password
             site: Site name (default "default")
-            verify_ssl: Verify SSL certificate
+            use_cloud_api: Set to False
         """
+        self.use_cloud_api = use_cloud_api
+        self.api_key = api_key
+        self.site_id = site_id
+
+        # Local controller settings (legacy)
         self.host = host
         self.port = port
         self.username = username
         self.password = password
         self.site = site
         self.verify_ssl = verify_ssl
-        self.base_url = f"https://{host}:{port}"
+
+        if self.use_cloud_api:
+            self.base_url = "https://api.ui.com/ea"
+        else:
+            self.base_url = f"https://{host}:{port}"
+
         self.session: Optional[aiohttp.ClientSession] = None
         self.cookies = {}
         self.logger = logger
@@ -49,22 +71,42 @@ class UnifiClient:
     async def _ensure_session(self):
         """Create session if not exists"""
         if self.session is None or self.session.closed:
+            headers = {}
+
+            if self.use_cloud_api and self.api_key:
+                # Cloud API uses Bearer token authentication
+                headers["Authorization"] = f"Bearer {self.api_key}"
+                headers["Content-Type"] = "application/json"
+
             connector = aiohttp.TCPConnector(ssl=ssl.SSLContext() if not self.verify_ssl else None)
             self.session = aiohttp.ClientSession(
                 connector=connector,
-                cookie_jar=aiohttp.CookieJar()
+                headers=headers,
+                cookie_jar=aiohttp.CookieJar() if not self.use_cloud_api else None
             )
 
     async def login(self) -> bool:
         """
-        Authenticate with Unifi Controller
+        Authenticate with Unifi
+
+        For Cloud API: No login needed, uses API key
+        For Local Controller: Login with username/password
 
         Returns:
-            True if login successful
+            True if authentication successful
         """
         try:
             await self._ensure_session()
 
+            # Cloud API doesn't need explicit login, just API key in headers
+            if self.use_cloud_api:
+                if not self.api_key:
+                    self.logger.error("No API key provided for Unifi Cloud API")
+                    return False
+                self.logger.info("Using Unifi Cloud API with API key")
+                return True
+
+            # Local controller login
             login_data = {
                 "username": self.username,
                 "password": self.password,
@@ -84,7 +126,7 @@ class UnifiClient:
                     return False
 
         except Exception as e:
-            self.logger.error(f"Error logging in to Unifi: {e}")
+            self.logger.error(f"Error authenticating with Unifi: {e}")
             return False
 
     async def get_clients(self) -> List[Dict[str, Any]]:

@@ -37,6 +37,11 @@ class NetworkAgent:
 
         if config.unifi.enabled:
             self.unifi_client = UnifiClient(
+                # Cloud API settings (recommended)
+                api_key=config.unifi.api_key,
+                site_id=config.unifi.site_id,
+                use_cloud_api=config.unifi.use_cloud_api,
+                # Local controller settings (legacy)
                 host=config.unifi.host,
                 port=config.unifi.port,
                 username=config.unifi.username,
@@ -44,7 +49,8 @@ class NetworkAgent:
                 site=config.unifi.site,
                 verify_ssl=config.unifi.verify_ssl
             )
-            self.logger.info("Unifi integration enabled")
+            api_type = "Cloud API" if config.unifi.use_cloud_api else "Local Controller"
+            self.logger.info(f"Unifi integration enabled ({api_type})")
 
         if config.adguard.enabled:
             self.adguard_client = AdGuardClient(

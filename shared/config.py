@@ -180,8 +180,31 @@ class FeatureFlagsConfig(BaseSettings):
 
 
 class UnifiConfig(BaseSettings):
-    """Unifi Controller configuration"""
+    """Unifi Controller configuration
+
+    Supports both Cloud API (recommended) and Local Controller API
+
+    Cloud API (recommended):
+        api_key: Your Unifi API key from console.ui.com
+        site_id: Your site ID (found in console URL)
+        use_cloud_api: Set to True (default)
+
+    Local Controller API (legacy):
+        host: Controller hostname or IP
+        port: Controller port (default 443)
+        username: Admin username
+        password: Admin password
+        site: Site name (default "default")
+        use_cloud_api: Set to False
+    """
     enabled: bool = Field(default=False, alias="UNIFI_ENABLED")
+
+    # Cloud API settings (recommended)
+    use_cloud_api: bool = Field(default=True, alias="UNIFI_USE_CLOUD_API")
+    api_key: str = Field(default="", alias="UNIFI_API_KEY")
+    site_id: str = Field(default="", alias="UNIFI_SITE_ID")
+
+    # Local controller settings (legacy)
     host: str = Field(default="unifi.local", alias="UNIFI_HOST")
     port: int = Field(default=443, alias="UNIFI_PORT")
     username: str = Field(default="", alias="UNIFI_USERNAME")
