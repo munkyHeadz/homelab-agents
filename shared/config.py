@@ -179,6 +179,26 @@ class FeatureFlagsConfig(BaseSettings):
     cost_optimization: bool = Field(default=True, alias="FEATURE_COST_OPTIMIZATION")
 
 
+class UnifiConfig(BaseSettings):
+    """Unifi Controller configuration"""
+    enabled: bool = Field(default=False, alias="UNIFI_ENABLED")
+    host: str = Field(default="unifi.local", alias="UNIFI_HOST")
+    port: int = Field(default=443, alias="UNIFI_PORT")
+    username: str = Field(default="", alias="UNIFI_USERNAME")
+    password: str = Field(default="", alias="UNIFI_PASSWORD")
+    site: str = Field(default="default", alias="UNIFI_SITE")
+    verify_ssl: bool = Field(default=False, alias="UNIFI_VERIFY_SSL")
+
+
+class AdGuardConfig(BaseSettings):
+    """AdGuard Home configuration"""
+    enabled: bool = Field(default=False, alias="ADGUARD_ENABLED")
+    host: str = Field(default="adguard.local", alias="ADGUARD_HOST")
+    port: int = Field(default=80, alias="ADGUARD_PORT")
+    username: str = Field(default="", alias="ADGUARD_USERNAME")
+    password: str = Field(default="", alias="ADGUARD_PASSWORD")
+
+
 class Config(BaseSettings):
     """Main configuration class aggregating all sub-configs"""
 
@@ -210,6 +230,8 @@ class Config(BaseSettings):
     logging: LoggingConfig = Field(default_factory=LoggingConfig)
     security: SecurityConfig = Field(default_factory=SecurityConfig)
     features: FeatureFlagsConfig = Field(default_factory=FeatureFlagsConfig)
+    unifi: UnifiConfig = Field(default_factory=UnifiConfig)
+    adguard: AdGuardConfig = Field(default_factory=AdGuardConfig)
 
     @property
     def is_production(self) -> bool:

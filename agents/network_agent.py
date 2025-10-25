@@ -9,13 +9,15 @@ Provides enhanced network monitoring and management:
 """
 
 import json
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from datetime import datetime, timezone
 
 from anthropic import Anthropic
 from shared.config import config
 from shared.logging import get_logger
 from shared.metrics import get_metrics_collector
+from integrations.unifi_client import UnifiClient
+from integrations.adguard_client import AdGuardClient
 
 logger = get_logger(__name__)
 
@@ -28,6 +30,30 @@ class NetworkAgent:
         self.model = config.anthropic.default_model
         self.metrics = get_metrics_collector("network_agent")
         self.logger = logger
+
+        # Initialize API clients if enabled
+        self.unifi_client = None
+        self.adguard_client = None
+
+        if config.unifi.enabled:
+            self.unifi_client = UnifiClient(
+                host=config.unifi.host,
+                port=config.unifi.port,
+                username=config.unifi.username,
+                password=config.unifi.password,
+                site=config.unifi.site,
+                verify_ssl=config.unifi.verify_ssl
+            )
+            self.logger.info("Unifi integration enabled")
+
+        if config.adguard.enabled:
+            self.adguard_client = AdGuardClient(
+                host=config.adguard.host,
+                port=config.adguard.port,
+                username=config.adguard.username,
+                password=config.adguard.password
+            )
+            self.logger.info("AdGuard integration enabled")
 
         self.logger.info("Network agent initialized", model=self.model)
 
@@ -44,7 +70,6 @@ class NetworkAgent:
         try:
             self.logger.info("Getting network status")
 
-            # For now, return mock data - this would integrate with actual network APIs
             status = {
                 "success": True,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -56,12 +81,49 @@ class NetworkAgent:
                     "uptime_hours": 0
                 },
                 "services": {
-                    "unifi": "available",
-                    "adguard": "available",
-                    "router": "available"
+                    "unifi": "unavailable",
+                    "adguard": "unavailable",
+                    "router": "unavailable"
                 },
-                "message": "Network status monitoring - integration pending"
+                "message": None
             }
+
+            # Get data from Unifi if available
+            if self.unifi_client:
+                try:
+                    await self.unifi_client.login()
+                    stats = await self.unifi_client.get_network_stats()
+
+                    if stats:
+                        status["network"]["connected_devices"] = stats.get("connected_devices", 0)
+                        status["network"]["uptime_hours"] = round(stats.get("uptime_hours", 0), 2)
+                        status["services"]["unifi"] = "available"
+
+                        # Get bandwidth
+                        bandwidth = await self.unifi_client.get_bandwidth_usage()
+                        status["network"]["current_usage_mbps"] = bandwidth.get("total_mbps", 0)
+
+                    await self.unifi_client.logout()
+
+                except Exception as e:
+                    self.logger.error(f"Error getting Unifi data: {e}")
+                    status["services"]["unifi"] = "error"
+
+            # Check AdGuard status if available
+            if self.adguard_client:
+                try:
+                    filter_status = await self.adguard_client.get_filtering_status()
+                    if filter_status:
+                        status["services"]["adguard"] = "available"
+                        if not filter_status.get("enabled"):
+                            status["services"]["adguard"] = "disabled"
+                except Exception as e:
+                    self.logger.error(f"Error getting AdGuard status: {e}")
+                    status["services"]["adguard"] = "error"
+
+            # Add helpful message if no integrations
+            if not self.unifi_client and not self.adguard_client:
+                status["message"] = "No network integrations configured. Enable UNIFI or ADGUARD in config."
 
             return status
 
@@ -87,14 +149,30 @@ class NetworkAgent:
         try:
             self.logger.info("Getting connected devices")
 
-            # Mock data - would integrate with Unifi API
             devices = {
                 "success": True,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
                 "total_devices": 0,
                 "devices": [],
-                "message": "Device listing - Unifi integration pending"
+                "message": None
             }
+
+            # Get devices from Unifi if available
+            if self.unifi_client:
+                try:
+                    await self.unifi_client.login()
+                    clients = await self.unifi_client.get_clients()
+
+                    devices["devices"] = clients
+                    devices["total_devices"] = len(clients)
+
+                    await self.unifi_client.logout()
+
+                except Exception as e:
+                    self.logger.error(f"Error getting Unifi clients: {e}")
+                    devices["message"] = f"Error getting Unifi clients: {str(e)}"
+            else:
+                devices["message"] = "Unifi integration not enabled. Set UNIFI_ENABLED=true in config."
 
             return devices
 
@@ -126,8 +204,26 @@ class NetworkAgent:
                     "upload_mbps": 0,
                     "total_mbps": 0
                 },
-                "message": "Bandwidth monitoring - integration pending"
+                "message": None
             }
+
+            # Get bandwidth from Unifi if available
+            if self.unifi_client:
+                try:
+                    await self.unifi_client.login()
+                    bandwidth = await self.unifi_client.get_bandwidth_usage()
+
+                    stats["bandwidth"]["download_mbps"] = bandwidth.get("download_mbps", 0)
+                    stats["bandwidth"]["upload_mbps"] = bandwidth.get("upload_mbps", 0)
+                    stats["bandwidth"]["total_mbps"] = bandwidth.get("total_mbps", 0)
+
+                    await self.unifi_client.logout()
+
+                except Exception as e:
+                    self.logger.error(f"Error getting Unifi bandwidth: {e}")
+                    stats["message"] = f"Error getting bandwidth: {str(e)}"
+            else:
+                stats["message"] = "Unifi integration not enabled. Set UNIFI_ENABLED=true in config."
 
             return stats
 

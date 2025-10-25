@@ -842,6 +842,47 @@ class TelegramBotInterface:
             self.logger.error(f"Error in bandwidth command: {e}")
             await msg.edit_text(f"❌ Error: {str(e)}")
 
+    async def dns_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /dns command - show DNS/AdGuard statistics"""
+        if not self.is_authorized(update.effective_user.id):
+            return
+
+        msg = await update.message.reply_text("🛡️ Getting DNS statistics...")
+
+        try:
+            # Use AdGuard client directly if available
+            if self.network_agent.adguard_client:
+                stats = await self.network_agent.adguard_client.get_stats()
+                top_blocked = await self.network_agent.adguard_client.get_top_blocked_domains(limit=5)
+
+                if stats:
+                    response = "🛡️ **DNS/AdGuard Statistics**\n\n"
+                    response += f"**Total Queries:** {stats.get('total_queries', 0):,}\n"
+                    response += f"**Blocked Queries:** {stats.get('blocked_queries', 0):,}\n"
+                    response += f"**Blocked %:** {stats.get('blocked_percentage', 0):.2f}%\n"
+                    response += f"**Avg Processing:** {stats.get('avg_processing_time_ms', 0):.2f}ms\n\n"
+
+                    if top_blocked:
+                        response += "**Top Blocked Domains:**\n"
+                        for domain in top_blocked:
+                            response += f"  {domain['rank']}. `{domain['domain']}` ({domain['count']})\n"
+                    else:
+                        response += "_No blocked domains data available_"
+
+                    await msg.edit_text(response, parse_mode='Markdown')
+                else:
+                    await msg.edit_text("❌ Failed to retrieve DNS statistics", parse_mode='Markdown')
+            else:
+                await msg.edit_text(
+                    "⚠️ AdGuard integration not enabled\n\n"
+                    "_Set ADGUARD_ENABLED=true in config to enable DNS statistics_",
+                    parse_mode='Markdown'
+                )
+
+        except Exception as e:
+            self.logger.error(f"Error in dns command: {e}")
+            await msg.edit_text(f"❌ Error: {str(e)}")
+
     # === EXISTING COMMANDS (Phases already complete) ===
 
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -937,6 +978,7 @@ You can also send natural language requests!
 /network - Comprehensive network status
 /devices - List connected network devices
 /bandwidth - Current bandwidth usage statistics
+/dns - DNS/AdGuard statistics and blocked domains
 
 **Bot Management:**
 /update - Pull latest code and restart
@@ -1341,10 +1383,11 @@ Use these commands for details:
             self.application.add_handler(CommandHandler("schedule_enable", self.schedule_enable_command))
             self.application.add_handler(CommandHandler("schedule_disable", self.schedule_disable_command))
 
-            # Network monitoring commands (Phase E)
+            # Network monitoring commands (Phase E & F)
             self.application.add_handler(CommandHandler("network", self.network_command))
             self.application.add_handler(CommandHandler("devices", self.devices_command))
             self.application.add_handler(CommandHandler("bandwidth", self.bandwidth_command))
+            self.application.add_handler(CommandHandler("dns", self.dns_command))
 
             # Natural language handler
             self.application.add_handler(
