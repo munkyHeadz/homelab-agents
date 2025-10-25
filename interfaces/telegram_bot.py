@@ -42,6 +42,7 @@ from shared.logging import get_logger
 from shared.metrics import start_metrics_server, get_metrics_collector
 from shared.alert_manager import get_alert_manager, Alert, AlertStatus
 from shared.report_scheduler import get_report_scheduler
+from shared.backup_manager import get_backup_manager
 from interfaces.webhook_server import WebhookServer
 
 logger = get_logger(__name__)
@@ -80,10 +81,13 @@ class TelegramBotInterface:
         # Initialize report scheduler (callback set later in run_async)
         self.report_scheduler = get_report_scheduler()
 
+        # Initialize backup manager
+        self.backup_manager = get_backup_manager()
+
         # Pending confirmations for destructive actions
         self.pending_confirmations = {}
 
-        self.logger.info("Telegram bot interface initialized with alert integration and scheduled reports")
+        self.logger.info("Telegram bot interface initialized with alert integration, scheduled reports, and backup monitoring")
 
     def is_authorized(self, user_id: int) -> bool:
         """Check if user is authorized to use the bot"""
@@ -1011,6 +1015,87 @@ class TelegramBotInterface:
         except Exception as e:
             self.logger.error(f"Error in scheduled report callback: {e}")
 
+    # === BACKUP MANAGEMENT COMMANDS (Phase C) ===
+
+    async def backups_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /backups command - show backup status"""
+        if not self.is_authorized(update.effective_user.id):
+            return
+
+        msg = await update.message.reply_text("📦 Retrieving backup status...")
+
+        try:
+            if not self.backup_manager.is_available():
+                await msg.edit_text(
+                    "📦 **Backup Management**\n\n"
+                    "⚠️ PBS (Proxmox Backup Server) integration not configured.\n\n"
+                    "Configure PBS_HOST in .env to enable backup monitoring.",
+                    parse_mode='Markdown'
+                )
+                return
+
+            # Get backup report
+            report = await self.backup_manager.get_backup_report()
+            await msg.edit_text(report, parse_mode='Markdown')
+
+        except Exception as e:
+            self.logger.error(f"Error in backups command: {e}")
+            await msg.edit_text(f"❌ Error retrieving backup status: {str(e)}")
+
+    async def backup_list_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /backup_list command - list recent backups"""
+        if not self.is_authorized(update.effective_user.id):
+            return
+
+        msg = await update.message.reply_text("📋 Retrieving backup list...")
+
+        try:
+            if not self.backup_manager.is_available():
+                await msg.edit_text(
+                    "⚠️ PBS integration not configured",
+                    parse_mode='Markdown'
+                )
+                return
+
+            # Get backup list
+            result = await self.backup_manager.get_backup_list(limit=15)
+
+            if not result.get("success"):
+                await msg.edit_text(
+                    f"❌ Error: {result.get('error', 'Unknown error')}",
+                    parse_mode='Markdown'
+                )
+                return
+
+            backups = result.get("backups", [])
+
+            if not backups:
+                await msg.edit_text("📋 **Recent Backups**\n\nNo backups found", parse_mode='Markdown')
+                return
+
+            # Format backup list
+            response = f"📋 **Recent Backups** ({len(backups)} shown)\n\n"
+
+            for backup in backups:
+                backup_type = backup.get("type", "unknown")
+                backup_id = backup.get("id", "unknown")
+                time_ago = backup.get("time_ago", "unknown")
+                size = backup.get("size_gb", 0)
+
+                verified = "✅" if backup.get("verified") else "⭕"
+                protected = " 🔒" if backup.get("protected") else ""
+
+                response += f"**{backup_type}/{backup_id}**\n"
+                response += f"  • {time_ago} | {size} GB | {verified}{protected}\n\n"
+
+            response += "_Use /backups for full status_"
+
+            await msg.edit_text(response, parse_mode='Markdown')
+
+        except Exception as e:
+            self.logger.error(f"Error in backup_list command: {e}")
+            await msg.edit_text(f"❌ Error: {str(e)}")
+
     # === EXISTING COMMANDS (Phases already complete) ===
 
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1057,6 +1142,10 @@ Welcome! I'm your autonomous homelab management assistant.
 /report <type> - Generate report (daily/weekly/monthly)
 /schedule - View/manage scheduled reports
 
+**📦 Backup Management:**
+/backups - Show backup status and health
+/backup_list - List recent backups
+
 **⚙️ Management:**
 /update - Update bot code
 /help - Show command reference
@@ -1102,6 +1191,10 @@ You can also send natural language requests!
 **Scheduled Reports:**
 /report <type> - Generate report on demand (daily/weekly/monthly)
 /schedule - View and manage scheduled report configuration
+
+**Backup Management:**
+/backups - Show backup status, health, and datastore usage
+/backup_list - List recent backups with verification status
 
 **Network Monitoring:**
 /network - Comprehensive network status
@@ -1514,6 +1607,10 @@ Use these commands for details:
             # Scheduled reports commands (Phase D)
             self.application.add_handler(CommandHandler("report", self.report_command))
             self.application.add_handler(CommandHandler("schedule", self.schedule_command))
+
+            # Backup management commands (Phase C)
+            self.application.add_handler(CommandHandler("backups", self.backups_command))
+            self.application.add_handler(CommandHandler("backup_list", self.backup_list_command))
 
             # Network monitoring commands (Phase E & F)
             self.application.add_handler(CommandHandler("network", self.network_command))
