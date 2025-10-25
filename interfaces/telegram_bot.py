@@ -36,6 +36,7 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from agents.infrastructure_agent import InfrastructureAgent
 from agents.monitoring_agent import MonitoringAgent
 from agents.network_agent import NetworkAgent
+from agents.remediation_engine import get_remediation_engine, RemediationStatus
 from shared.config import config
 from shared.logging import get_logger
 from shared.metrics import start_metrics_server, get_metrics_collector
@@ -68,6 +69,9 @@ class TelegramBotInterface:
         self.infrastructure_agent = InfrastructureAgent()
         self.monitoring_agent = MonitoringAgent()
         self.network_agent = NetworkAgent()
+
+        # Initialize remediation engine
+        self.remediation_engine = get_remediation_engine(self.infrastructure_agent)
 
         # Initialize alert system
         self.alert_manager = get_alert_manager()
@@ -883,6 +887,135 @@ class TelegramBotInterface:
             self.logger.error(f"Error in dns command: {e}")
             await msg.edit_text(f"❌ Error: {str(e)}")
 
+    # === AUTOMATED REMEDIATION COMMANDS (Phase G) ===
+
+    async def remediate_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /remediate command - manual remediation actions"""
+        if not self.is_authorized(update.effective_user.id):
+            return
+
+        if not context.args or len(context.args) < 2:
+            await update.message.reply_text(
+                "**Usage:**\n"
+                "`/remediate service <vmid> <service_name>` - Restart a service\n"
+                "`/remediate container <container_id>` - Restart a container\n"
+                "`/remediate cleanup <vmid> [path]` - Clean up disk space\n\n"
+                "**Examples:**\n"
+                "`/remediate service 104 docker`\n"
+                "`/remediate container arr_sonarr_1`\n"
+                "`/remediate cleanup 104 /var/log`",
+                parse_mode='Markdown'
+            )
+            return
+
+        action_type = context.args[0].lower()
+        msg = await update.message.reply_text("🔧 Initiating remediation...")
+
+        try:
+            if action_type == "service" and len(context.args) >= 3:
+                vmid = context.args[1]
+                service_name = context.args[2]
+
+                action = await self.remediation_engine.restart_service(
+                    vmid=vmid,
+                    service_name=service_name,
+                    auto_approve=True
+                )
+
+                status_emoji = "✅" if action.status == RemediationStatus.SUCCESS else "❌"
+                response = f"{status_emoji} **Service Restart**\n\n"
+                response += f"**Target:** {vmid}:{service_name}\n"
+                response += f"**Status:** {action.status.value}\n"
+                if action.error:
+                    response += f"**Error:** {action.error}\n"
+
+                await msg.edit_text(response, parse_mode='Markdown')
+
+            elif action_type == "container" and len(context.args) >= 2:
+                container_id = context.args[1]
+
+                action = await self.remediation_engine.heal_container(
+                    container_id=container_id,
+                    auto_approve=True
+                )
+
+                status_emoji = "✅" if action.status == RemediationStatus.SUCCESS else "❌"
+                response = f"{status_emoji} **Container Restart**\n\n"
+                response += f"**Container:** {container_id}\n"
+                response += f"**Status:** {action.status.value}\n"
+                if action.error:
+                    response += f"**Error:** {action.error}\n"
+
+                await msg.edit_text(response, parse_mode='Markdown')
+
+            elif action_type == "cleanup" and len(context.args) >= 2:
+                vmid = context.args[1]
+                path = context.args[2] if len(context.args) > 2 else "/var/log"
+
+                action = await self.remediation_engine.cleanup_disk(
+                    vmid=vmid,
+                    path=path,
+                    auto_approve=True
+                )
+
+                status_emoji = "✅" if action.status == RemediationStatus.SUCCESS else "❌"
+                response = f"{status_emoji} **Disk Cleanup**\n\n"
+                response += f"**Target:** {vmid}:{path}\n"
+                response += f"**Status:** {action.status.value}\n"
+                if action.error:
+                    response += f"**Error:** {action.error}\n"
+
+                await msg.edit_text(response, parse_mode='Markdown')
+
+            else:
+                await msg.edit_text("❌ Invalid remediation type or missing arguments")
+
+        except Exception as e:
+            self.logger.error(f"Error in remediate command: {e}")
+            await msg.edit_text(f"❌ Error: {str(e)}")
+
+    async def remediation_history_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /remediation_history command - show recent remediation actions"""
+        if not self.is_authorized(update.effective_user.id):
+            return
+
+        try:
+            actions = self.remediation_engine.get_recent_actions(limit=10)
+            stats = self.remediation_engine.get_stats()
+
+            response = "🔧 **Remediation History**\n\n"
+            response += f"**Statistics:**\n"
+            response += f"Total Actions: {stats['total_actions']}\n"
+            response += f"Successful: {stats['successful']} ({stats['success_rate']}%)\n"
+            response += f"Failed: {stats['failed']}\n"
+            response += f"Auto-remediation: {'✅ Enabled' if stats['auto_remediation_enabled'] else '⭕ Disabled'}\n\n"
+
+            if actions:
+                response += "**Recent Actions:**\n"
+                for action in actions:
+                    status_emoji = {
+                        RemediationStatus.SUCCESS: "✅",
+                        RemediationStatus.FAILED: "❌",
+                        RemediationStatus.PENDING: "⏳",
+                        RemediationStatus.IN_PROGRESS: "🔄",
+                        RemediationStatus.SKIPPED: "⏭️"
+                    }.get(action.status, "❓")
+
+                    response += f"\n{status_emoji} **{action.description}**\n"
+                    response += f"  Type: {action.action_type.value}\n"
+                    response += f"  Status: {action.status.value}\n"
+                    response += f"  Time: {action.created_at.strftime('%Y-%m-%d %H:%M')}\n"
+                    if action.error:
+                        response += f"  Error: {action.error}\n"
+            else:
+                response += "_No remediation actions recorded yet_"
+
+            await update.message.reply_text(response, parse_mode='Markdown')
+
+        except Exception as e:
+            self.logger.error(f"Error in remediation_history command: {e}")
+            await update.message.reply_text(f"❌ Error: {str(e)}")
+
     # === EXISTING COMMANDS (Phases already complete) ===
 
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -979,6 +1112,12 @@ You can also send natural language requests!
 /devices - List connected network devices
 /bandwidth - Current bandwidth usage statistics
 /dns - DNS/AdGuard statistics and blocked domains
+
+**Automated Remediation:**
+/remediate service <vmid> <name> - Restart a service
+/remediate container <id> - Restart a container
+/remediate cleanup <vmid> [path] - Clean up disk space
+/remediation_history - View recent remediation actions
 
 **Bot Management:**
 /update - Pull latest code and restart
@@ -1388,6 +1527,10 @@ Use these commands for details:
             self.application.add_handler(CommandHandler("devices", self.devices_command))
             self.application.add_handler(CommandHandler("bandwidth", self.bandwidth_command))
             self.application.add_handler(CommandHandler("dns", self.dns_command))
+
+            # Automated remediation commands (Phase G)
+            self.application.add_handler(CommandHandler("remediate", self.remediate_command))
+            self.application.add_handler(CommandHandler("remediation_history", self.remediation_history_command))
 
             # Natural language handler
             self.application.add_handler(
