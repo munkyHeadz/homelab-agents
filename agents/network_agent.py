@@ -25,7 +25,7 @@ class NetworkAgent:
 
     def __init__(self):
         self.client = Anthropic(api_key=config.anthropic.api_key)
-        self.model = config.anthropic.model
+        self.model = config.anthropic.default_model
         self.metrics = get_metrics_collector()
         self.logger = logger
 
