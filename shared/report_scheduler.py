@@ -1,212 +1,270 @@
 """
-Scheduled Report System
+Report Scheduler
 
-Generates and sends automated reports via Telegram:
-- Daily system summaries
-- Weekly resource trends
-- On-demand reports
+Manages scheduled report generation and delivery:
+- Daily summaries at configured time
+- Weekly trends on Monday mornings
+- Monthly reports on 1st of month
+- Manual report triggers
 """
 
-from datetime import datetime, timezone
-from typing import Dict, Any, Optional, Callable
-import asyncio
+from typing import Dict, Any, List, Callable, Optional
+from datetime import datetime, time
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 
 from shared.logging import get_logger
+from shared.report_generator import get_report_generator, ReportType
 
 logger = get_logger(__name__)
 
 
-class ReportScheduler:
-    """Manages scheduled report generation and delivery"""
+class ReportSchedule:
+    """Report schedule configuration"""
 
-    def __init__(self, send_message_callback: Optional[Callable] = None):
+    def __init__(
+        self,
+        report_type: ReportType,
+        enabled: bool = True,
+        cron_expression: Optional[str] = None,
+        hour: int = 8,
+        minute: int = 0,
+        day_of_week: Optional[str] = None,
+        day: Optional[int] = None
+    ):
+        self.report_type = report_type
+        self.enabled = enabled
+        self.cron_expression = cron_expression
+        self.hour = hour
+        self.minute = minute
+        self.day_of_week = day_of_week  # 'mon', 'tue', etc.
+        self.day = day  # Day of month (1-31)
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary"""
+        return {
+            "report_type": self.report_type.value,
+            "enabled": self.enabled,
+            "cron_expression": self.cron_expression,
+            "hour": self.hour,
+            "minute": self.minute,
+            "day_of_week": self.day_of_week,
+            "day": self.day
+        }
+
+
+class ReportScheduler:
+    """Manages scheduled report generation"""
+
+    def __init__(self, report_callback: Optional[Callable] = None):
         """
         Initialize report scheduler
 
         Args:
-            send_message_callback: Async function to send Telegram messages
+            report_callback: Async function to call with generated report
+                           Signature: async def callback(report_type: str, report_text: str)
         """
-        self.send_message_callback = send_message_callback
-        self.enabled = {
-            'daily_summary': True,
-            'weekly_trends': True
-        }
-        self.schedules = {
-            'daily_summary': '08:00',  # 8 AM
-            'weekly_trends': 'Monday 09:00'  # Monday 9 AM
-        }
-        self.last_runs = {}
+        self.scheduler = AsyncIOScheduler()
+        self.report_callback = report_callback
+        self.report_generator = None
+        self.logger = logger
 
-        logger.info("Report scheduler initialized", schedules=self.schedules)
-
-    def enable_report(self, report_type: str, enabled: bool = True):
-        """Enable or disable a specific report type"""
-        if report_type in self.enabled:
-            self.enabled[report_type] = enabled
-            logger.info(f"Report {report_type} {'enabled' if enabled else 'disabled'}")
-
-    def set_schedule(self, report_type: str, schedule: str):
-        """Update schedule for a report type"""
-        if report_type in self.schedules:
-            self.schedules[report_type] = schedule
-            logger.info(f"Schedule updated for {report_type}", schedule=schedule)
-
-    def get_config(self) -> Dict[str, Any]:
-        """Get current scheduler configuration"""
-        return {
-            'enabled': self.enabled.copy(),
-            'schedules': self.schedules.copy(),
-            'last_runs': self.last_runs.copy()
+        # Default schedules
+        self.schedules: Dict[ReportType, ReportSchedule] = {
+            ReportType.DAILY_SUMMARY: ReportSchedule(
+                report_type=ReportType.DAILY_SUMMARY,
+                enabled=True,
+                hour=8,
+                minute=0
+            ),
+            ReportType.WEEKLY_TRENDS: ReportSchedule(
+                report_type=ReportType.WEEKLY_TRENDS,
+                enabled=True,
+                hour=8,
+                minute=0,
+                day_of_week='mon'
+            ),
+            ReportType.MONTHLY_SUMMARY: ReportSchedule(
+                report_type=ReportType.MONTHLY_SUMMARY,
+                enabled=False,  # Disabled by default
+                hour=8,
+                minute=0,
+                day=1
+            )
         }
 
-    async def generate_daily_summary(self, infrastructure_agent, monitoring_agent) -> str:
+    def set_report_generator(self, infrastructure_agent=None, network_agent=None, alert_manager=None):
+        """Set up report generator with agents"""
+        self.report_generator = get_report_generator(
+            infrastructure_agent=infrastructure_agent,
+            network_agent=network_agent,
+            alert_manager=alert_manager
+        )
+
+    async def _generate_and_send_report(self, report_type: ReportType):
         """
-        Generate daily system summary report
+        Generate report and send via callback
 
-        Returns formatted Markdown message
+        Args:
+            report_type: Type of report to generate
         """
         try:
-            logger.info("Generating daily system summary")
+            self.logger.info(f"Generating scheduled report: {report_type.value}")
 
-            # Get system status
-            infra_result = await infrastructure_agent.monitor_resources()
+            if not self.report_generator:
+                self.logger.error("Report generator not initialized")
+                return
 
-            # Build summary
-            report = f"📊 **Daily System Summary**\n"
-            report += f"📅 {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}\n\n"
-
-            # VM/Container status
-            if infra_result.get('success'):
-                proxmox_data = infra_result.get('proxmox', {})
-                if isinstance(proxmox_data, dict):
-                    total_vms = proxmox_data.get('total_vms', 0)
-                    running_vms = proxmox_data.get('running_vms', 0)
-                    stopped_vms = total_vms - running_vms
-
-                    report += f"**Infrastructure Status:**\n"
-                    report += f"✅ Running: {running_vms}/{total_vms} VMs/Containers\n"
-                    if stopped_vms > 0:
-                        report += f"⭕ Stopped: {stopped_vms}\n"
-                    report += "\n"
-
-                # Resource usage
-                if 'node' in infra_result:
-                    node_data = infra_result['node']
-                    if isinstance(node_data, dict):
-                        cpu_pct = node_data.get('cpu', 0) * 100
-                        mem_pct = node_data.get('mem_pct', 0)
-                        disk_pct = node_data.get('disk_pct', 0)
-
-                        report += f"**Host Resources:**\n"
-                        report += f"💻 CPU: {cpu_pct:.1f}%\n"
-                        report += f"🧠 Memory: {mem_pct:.1f}%\n"
-                        report += f"💾 Disk: {disk_pct:.1f}%\n\n"
-
-            # Add health indicators
-            report += "**System Health:** "
-            if infra_result.get('success'):
-                report += "✅ Healthy\n\n"
+            # Generate report
+            if report_type == ReportType.DAILY_SUMMARY:
+                report_text = await self.report_generator.generate_daily_summary()
+            elif report_type == ReportType.WEEKLY_TRENDS:
+                report_text = await self.report_generator.generate_weekly_trends()
+            elif report_type == ReportType.MONTHLY_SUMMARY:
+                report_text = await self.report_generator.generate_monthly_summary()
             else:
-                report += "⚠️ Check required\n\n"
+                self.logger.error(f"Unknown report type: {report_type}")
+                return
 
-            report += "_Automated daily report_"
-
-            return report
+            # Send via callback
+            if self.report_callback:
+                await self.report_callback(report_type.value, report_text)
+                self.logger.info(f"Report sent: {report_type.value}")
+            else:
+                self.logger.warning("No report callback configured")
 
         except Exception as e:
-            logger.error(f"Error generating daily summary: {e}")
-            return f"❌ Error generating daily summary: {str(e)}"
+            self.logger.error(f"Error generating report {report_type.value}: {e}")
 
-    async def generate_weekly_trends(self, infrastructure_agent, monitoring_agent) -> str:
+    def start(self):
+        """Start the scheduler"""
+        try:
+            # Add jobs based on schedules
+            for report_type, schedule in self.schedules.items():
+                if not schedule.enabled:
+                    continue
+
+                # Build cron trigger
+                if schedule.cron_expression:
+                    trigger = CronTrigger.from_crontab(schedule.cron_expression)
+                else:
+                    trigger_kwargs = {
+                        'hour': schedule.hour,
+                        'minute': schedule.minute
+                    }
+
+                    if schedule.day_of_week:
+                        trigger_kwargs['day_of_week'] = schedule.day_of_week
+
+                    if schedule.day:
+                        trigger_kwargs['day'] = schedule.day
+
+                    trigger = CronTrigger(**trigger_kwargs)
+
+                # Add job
+                self.scheduler.add_job(
+                    self._generate_and_send_report,
+                    trigger=trigger,
+                    args=[report_type],
+                    id=f"report_{report_type.value}",
+                    replace_existing=True
+                )
+
+                self.logger.info(f"Scheduled {report_type.value}: {trigger}")
+
+            # Start scheduler
+            self.scheduler.start()
+            self.logger.info("Report scheduler started")
+
+        except Exception as e:
+            self.logger.error(f"Error starting scheduler: {e}")
+
+    def stop(self):
+        """Stop the scheduler"""
+        try:
+            if self.scheduler.running:
+                self.scheduler.shutdown()
+                self.logger.info("Report scheduler stopped")
+        except Exception as e:
+            self.logger.error(f"Error stopping scheduler: {e}")
+
+    def update_schedule(self, report_type: ReportType, enabled: Optional[bool] = None,
+                       hour: Optional[int] = None, minute: Optional[int] = None):
         """
-        Generate weekly resource trends report
+        Update report schedule
 
-        Returns formatted Markdown message
+        Args:
+            report_type: Type of report to update
+            enabled: Enable/disable the report
+            hour: Hour to run (0-23)
+            minute: Minute to run (0-59)
         """
         try:
-            logger.info("Generating weekly trends report")
+            if report_type not in self.schedules:
+                self.logger.error(f"Unknown report type: {report_type}")
+                return False
 
-            report = f"📈 **Weekly Resource Trends**\n"
-            report += f"📅 Week ending {datetime.now(timezone.utc).strftime('%Y-%m-%d')}\n\n"
+            schedule = self.schedules[report_type]
 
-            # Get current status for comparison
-            infra_result = await infrastructure_agent.monitor_resources()
+            # Update schedule
+            if enabled is not None:
+                schedule.enabled = enabled
 
-            if infra_result.get('success'):
-                report += "**Current Status:**\n"
+            if hour is not None:
+                schedule.hour = hour
 
-                # Node metrics
-                if 'node' in infra_result:
-                    node = infra_result['node']
-                    if isinstance(node, dict):
-                        report += f"💻 CPU Load: {node.get('cpu', 0) * 100:.1f}%\n"
-                        report += f"🧠 Memory: {node.get('mem_pct', 0):.1f}%\n"
-                        report += f"💾 Disk: {node.get('disk_pct', 0):.1f}%\n\n"
+            if minute is not None:
+                schedule.minute = minute
 
-                # VM counts
-                if 'proxmox' in infra_result:
-                    prox = infra_result['proxmox']
-                    if isinstance(prox, dict):
-                        report += f"**Virtual Machines:**\n"
-                        report += f"Total: {prox.get('total_vms', 0)}\n"
-                        report += f"Running: {prox.get('running_vms', 0)}\n\n"
+            # Restart scheduler to apply changes
+            if self.scheduler.running:
+                self.stop()
+                self.start()
 
-            report += "**Trends:**\n"
-            report += "📊 System uptime stable\n"
-            report += "✅ No resource alerts this week\n\n"
-
-            report += "_Automated weekly report_"
-
-            return report
+            self.logger.info(f"Updated schedule for {report_type.value}")
+            return True
 
         except Exception as e:
-            logger.error(f"Error generating weekly trends: {e}")
-            return f"❌ Error generating weekly trends: {str(e)}"
+            self.logger.error(f"Error updating schedule: {e}")
+            return False
 
-    async def send_report(self, report_content: str, chat_ids: list):
-        """Send report to specified chat IDs"""
-        if not self.send_message_callback:
-            logger.warning("No send_message_callback configured")
-            return
+    def get_schedules(self) -> Dict[str, Dict[str, Any]]:
+        """Get all configured schedules"""
+        return {
+            report_type.value: schedule.to_dict()
+            for report_type, schedule in self.schedules.items()
+        }
 
-        for chat_id in chat_ids:
-            try:
-                await self.send_message_callback(
-                    chat_id=chat_id,
-                    text=report_content,
-                    parse_mode='Markdown'
-                )
-                logger.info(f"Report sent to chat {chat_id}")
-            except Exception as e:
-                logger.error(f"Failed to send report to {chat_id}: {e}")
+    def get_next_run_times(self) -> Dict[str, Optional[datetime]]:
+        """Get next run times for all scheduled reports"""
+        next_runs = {}
 
-    async def run_daily_summary(self, infrastructure_agent, monitoring_agent, chat_ids: list):
-        """Execute daily summary report"""
-        if not self.enabled.get('daily_summary', False):
-            return
+        for job in self.scheduler.get_jobs():
+            if job.id.startswith("report_"):
+                report_type = job.id.replace("report_", "")
+                next_runs[report_type] = job.next_run_time
 
-        report = await self.generate_daily_summary(infrastructure_agent, monitoring_agent)
-        await self.send_report(report, chat_ids)
-        self.last_runs['daily_summary'] = datetime.now(timezone.utc)
+        return next_runs
 
-    async def run_weekly_trends(self, infrastructure_agent, monitoring_agent, chat_ids: list):
-        """Execute weekly trends report"""
-        if not self.enabled.get('weekly_trends', False):
-            return
+    async def trigger_report_now(self, report_type: ReportType):
+        """
+        Manually trigger a report immediately
 
-        report = await self.generate_weekly_trends(infrastructure_agent, monitoring_agent)
-        await self.send_report(report, chat_ids)
-        self.last_runs['weekly_trends'] = datetime.now(timezone.utc)
+        Args:
+            report_type: Type of report to generate
+        """
+        await self._generate_and_send_report(report_type)
 
 
 # Global instance
 _report_scheduler = None
 
-def get_report_scheduler(send_message_callback: Optional[Callable] = None) -> ReportScheduler:
+
+def get_report_scheduler(report_callback: Optional[Callable] = None):
     """Get or create the global report scheduler instance"""
     global _report_scheduler
     if _report_scheduler is None:
-        _report_scheduler = ReportScheduler(send_message_callback)
-    elif send_message_callback is not None:
-        _report_scheduler.send_message_callback = send_message_callback
+        _report_scheduler = ReportScheduler(report_callback=report_callback)
+    elif report_callback is not None:
+        _report_scheduler.report_callback = report_callback
     return _report_scheduler
