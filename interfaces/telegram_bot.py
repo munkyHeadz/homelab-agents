@@ -43,6 +43,7 @@ from shared.metrics import start_metrics_server, get_metrics_collector
 from shared.alert_manager import get_alert_manager, Alert, AlertStatus
 from shared.report_scheduler import get_report_scheduler
 from shared.backup_manager import get_backup_manager
+from shared.observability_manager import get_observability_manager
 from interfaces.webhook_server import WebhookServer
 
 logger = get_logger(__name__)
@@ -84,10 +85,13 @@ class TelegramBotInterface:
         # Initialize backup manager
         self.backup_manager = get_backup_manager()
 
+        # Initialize observability manager
+        self.observability_manager = get_observability_manager()
+
         # Pending confirmations for destructive actions
         self.pending_confirmations = {}
 
-        self.logger.info("Telegram bot interface initialized with alert integration, scheduled reports, and backup monitoring")
+        self.logger.info("Telegram bot interface initialized with alert integration, scheduled reports, backup monitoring, and observability")
 
     def is_authorized(self, user_id: int) -> bool:
         """Check if user is authorized to use the bot"""
@@ -1096,6 +1100,84 @@ class TelegramBotInterface:
             self.logger.error(f"Error in backup_list command: {e}")
             await msg.edit_text(f"❌ Error: {str(e)}")
 
+    # === OBSERVABILITY COMMANDS (Phase H) ===
+
+    async def metrics_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /metrics command - show current system metrics"""
+        if not self.is_authorized(update.effective_user.id):
+            return
+
+        msg = await update.message.reply_text("📊 Retrieving system metrics...")
+
+        try:
+            # Get metrics dashboard
+            dashboard = await self.observability_manager.get_metrics_dashboard()
+            await msg.edit_text(dashboard, parse_mode='Markdown', disable_web_page_preview=True)
+
+        except Exception as e:
+            self.logger.error(f"Error in metrics command: {e}")
+            await msg.edit_text(f"❌ Error retrieving metrics: {str(e)}")
+
+    async def prometheus_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /prometheus command - show Prometheus alerts"""
+        if not self.is_authorized(update.effective_user.id):
+            return
+
+        msg = await update.message.reply_text("🚨 Retrieving Prometheus alerts...")
+
+        try:
+            # Get Prometheus alerts
+            alerts = await self.observability_manager.get_prometheus_alerts()
+            await msg.edit_text(alerts, parse_mode='Markdown', disable_web_page_preview=True)
+
+        except Exception as e:
+            self.logger.error(f"Error in prometheus command: {e}")
+            await msg.edit_text(f"❌ Error: {str(e)}")
+
+    async def grafana_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /grafana command - show Grafana dashboard links"""
+        if not self.is_authorized(update.effective_user.id):
+            return
+
+        try:
+            # Get Grafana links
+            links = await self.observability_manager.get_grafana_links()
+            await update.message.reply_text(links, parse_mode='Markdown', disable_web_page_preview=True)
+
+        except Exception as e:
+            self.logger.error(f"Error in grafana command: {e}")
+            await update.message.reply_text(f"❌ Error: {str(e)}")
+
+    async def promql_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /promql command - execute custom Prometheus query"""
+        if not self.is_authorized(update.effective_user.id):
+            return
+
+        if not context.args:
+            await update.message.reply_text(
+                "**🔍 Prometheus Query**\n\n"
+                "Usage: `/promql <query>`\n\n"
+                "**Examples:**\n"
+                "  • `/promql up` - Show all targets\n"
+                "  • `/promql node_cpu_seconds_total` - CPU metrics\n"
+                "  • `/promql rate(node_network_receive_bytes_total[5m])` - Network rate\n\n"
+                "_Use PromQL syntax_",
+                parse_mode='Markdown'
+            )
+            return
+
+        query = " ".join(context.args)
+        msg = await update.message.reply_text(f"🔍 Executing query...\n\n`{query}`", parse_mode='Markdown')
+
+        try:
+            # Execute query
+            result = await self.observability_manager.query_prometheus(query)
+            await msg.edit_text(result, parse_mode='Markdown', disable_web_page_preview=True)
+
+        except Exception as e:
+            self.logger.error(f"Error in promql command: {e}")
+            await msg.edit_text(f"❌ Error executing query:\n\n`{str(e)}`", parse_mode='Markdown')
+
     # === EXISTING COMMANDS (Phases already complete) ===
 
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -1146,6 +1228,12 @@ Welcome! I'm your autonomous homelab management assistant.
 /backups - Show backup status and health
 /backup_list - List recent backups
 
+**📊 Observability:**
+/metrics - Current system metrics (CPU/Memory/Disk)
+/prometheus - Prometheus alerts
+/grafana - Grafana dashboard links
+/promql <query> - Execute Prometheus query
+
 **⚙️ Management:**
 /update - Update bot code
 /help - Show command reference
@@ -1195,6 +1283,12 @@ You can also send natural language requests!
 **Backup Management:**
 /backups - Show backup status, health, and datastore usage
 /backup_list - List recent backups with verification status
+
+**Observability & Monitoring:**
+/metrics - Real-time system metrics dashboard (CPU/Memory/Disk)
+/prometheus - View Prometheus alerts status
+/grafana - Get Grafana dashboard links
+/promql <query> - Execute custom Prometheus queries
 
 **Network Monitoring:**
 /network - Comprehensive network status
@@ -1611,6 +1705,12 @@ Use these commands for details:
             # Backup management commands (Phase C)
             self.application.add_handler(CommandHandler("backups", self.backups_command))
             self.application.add_handler(CommandHandler("backup_list", self.backup_list_command))
+
+            # Observability commands (Phase H)
+            self.application.add_handler(CommandHandler("metrics", self.metrics_command))
+            self.application.add_handler(CommandHandler("prometheus", self.prometheus_command))
+            self.application.add_handler(CommandHandler("grafana", self.grafana_command))
+            self.application.add_handler(CommandHandler("promql", self.promql_command))
 
             # Network monitoring commands (Phase E & F)
             self.application.add_handler(CommandHandler("network", self.network_command))
