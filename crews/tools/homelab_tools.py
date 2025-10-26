@@ -64,6 +64,16 @@ from crews.tools.proxmox_tools import (
     get_proxmox_system_summary
 )
 
+# Import Home Assistant tools
+from crews.tools.homeassistant_tools import (
+    check_homeassistant_status,
+    list_homeassistant_entities,
+    get_entity_state,
+    get_entity_history,
+    check_automation_status,
+    get_homeassistant_summary
+)
+
 # Load environment variables
 load_dotenv()
 

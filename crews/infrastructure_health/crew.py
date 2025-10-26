@@ -46,6 +46,12 @@ from crews.tools import (
     get_proxmox_storage_status,
     get_proxmox_cluster_status,
     get_proxmox_system_summary,
+    check_homeassistant_status,
+    list_homeassistant_entities,
+    get_entity_state,
+    get_entity_history,
+    check_automation_status,
+    get_homeassistant_summary,
 )
 from crews.memory.incident_memory import IncidentMemory
 
@@ -98,6 +104,8 @@ monitor_agent = Agent(
         get_adguard_protection_summary,
         check_proxmox_node_health,
         get_proxmox_system_summary,
+        check_homeassistant_status,
+        get_homeassistant_summary,
     ],
     llm=llm,
     verbose=True,
@@ -138,6 +146,10 @@ analyst_agent = Agent(
         check_proxmox_vm_status,
         get_proxmox_storage_status,
         get_proxmox_cluster_status,
+        list_homeassistant_entities,
+        get_entity_state,
+        get_entity_history,
+        check_automation_status,
     ],
     llm=llm,
     verbose=True,

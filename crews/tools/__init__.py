@@ -40,6 +40,12 @@ from .homelab_tools import (
     get_proxmox_storage_status,
     get_proxmox_cluster_status,
     get_proxmox_system_summary,
+    check_homeassistant_status,
+    list_homeassistant_entities,
+    get_entity_state,
+    get_entity_history,
+    check_automation_status,
+    get_homeassistant_summary,
 )
 
 __all__ = [
@@ -82,4 +88,10 @@ __all__ = [
     "get_proxmox_storage_status",
     "get_proxmox_cluster_status",
     "get_proxmox_system_summary",
+    "check_homeassistant_status",
+    "list_homeassistant_entities",
+    "get_entity_state",
+    "get_entity_history",
+    "check_automation_status",
+    "get_homeassistant_summary",
 ]
