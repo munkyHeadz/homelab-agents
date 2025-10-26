@@ -8,8 +8,25 @@ from proxmoxer import ProxmoxAPI
 from dotenv import load_dotenv
 from typing import Optional
 
+# Import Tailscale tools
+from crews.tools.tailscale_tools import (
+    list_tailscale_devices,
+    check_device_connectivity,
+    monitor_vpn_health,
+    get_critical_infrastructure_status
+)
+
+# Import PostgreSQL tools
+from crews.tools.postgres_tools import (
+    check_postgres_health,
+    query_database_performance,
+    check_database_sizes,
+    monitor_database_connections,
+    check_specific_database
+)
+
 # Load environment variables
-load_dotenv('/home/munky/homelab-agents/.env')
+load_dotenv()
 
 # Initialize clients
 prom = PrometheusConnect(url="http://100.67.169.111:9090", disable_ssl=True)

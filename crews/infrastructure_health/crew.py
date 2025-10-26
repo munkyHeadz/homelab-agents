@@ -14,11 +14,20 @@ from crews.tools import (
     check_lxc_status,
     restart_lxc,
     send_telegram,
+    list_tailscale_devices,
+    check_device_connectivity,
+    monitor_vpn_health,
+    get_critical_infrastructure_status,
+    check_postgres_health,
+    query_database_performance,
+    check_database_sizes,
+    monitor_database_connections,
+    check_specific_database,
 )
 from crews.memory.incident_memory import IncidentMemory
 
 # Load environment variables
-load_dotenv('/home/munky/homelab-agents/.env')
+load_dotenv()
 
 # Initialize LLM - Using GPT-4o-mini (fast, cheap, works with CrewAI)
 # Cost: $0.38/month for ~100 incidents vs Claude issues with CrewAI routing
@@ -47,7 +56,16 @@ monitor_agent = Agent(
 
     Your responsibility is to scan all metrics, identify problems, and immediately escalate
     issues to the Analyst for root cause analysis.""",
-    tools=[query_prometheus, check_container_status, check_lxc_status],
+    tools=[
+        query_prometheus,
+        check_container_status,
+        check_lxc_status,
+        monitor_vpn_health,
+        get_critical_infrastructure_status,
+        list_tailscale_devices,
+        check_postgres_health,
+        monitor_database_connections,
+    ],
     llm=llm,
     verbose=True,
     allow_delegation=True,
@@ -64,7 +82,17 @@ analyst_agent = Agent(
     When the Monitor identifies an issue, you dive deep into logs, metrics, and system
     state to pinpoint exactly what went wrong and why. You provide detailed diagnostic
     reports to the Healer.""",
-    tools=[query_prometheus, check_container_logs, check_lxc_status, check_container_status],
+    tools=[
+        query_prometheus,
+        check_container_logs,
+        check_lxc_status,
+        check_container_status,
+        check_device_connectivity,
+        list_tailscale_devices,
+        query_database_performance,
+        check_database_sizes,
+        check_specific_database,
+    ],
     llm=llm,
     verbose=True,
     allow_delegation=True,
@@ -296,9 +324,10 @@ def scheduled_health_check():
         1. Query Prometheus for all 'up' metrics
         2. Check all Docker containers are running
         3. Check all LXC containers are running
-        4. Look for any concerning metrics (high CPU, memory, disk usage)
-        5. If everything looks good, no action needed
-        6. If issues found, escalate to full incident response
+        4. Monitor Tailscale VPN health and critical infrastructure connectivity
+        5. Look for any concerning metrics (high CPU, memory, disk usage)
+        6. If everything looks good, no action needed
+        7. If issues found, escalate to full incident response
 
         Return a health status report.
         """,
