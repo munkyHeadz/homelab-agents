@@ -30,8 +30,9 @@ llm = ChatOpenAI(
 
 # Initialize incident memory for learning from past incidents
 try:
-    incident_memory = IncidentMemory(qdrant_url="http://localhost:6333")
-    print("✓ Incident memory system initialized")
+    qdrant_url = os.getenv("QDRANT_URL", "http://localhost:6333")
+    incident_memory = IncidentMemory(qdrant_url=qdrant_url)
+    print(f"✓ Incident memory system initialized (Qdrant: {qdrant_url})")
 except Exception as e:
     print(f"⚠ Warning: Could not initialize incident memory: {e}")
     incident_memory = None
