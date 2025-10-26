@@ -23,6 +23,12 @@ from .homelab_tools import (
     check_wan_connectivity,
     monitor_switch_ports,
     get_network_performance,
+    list_cloudflare_zones,
+    check_zone_health,
+    get_cloudflare_analytics,
+    check_security_events,
+    monitor_dns_records,
+    get_cloudflare_status,
 )
 
 __all__ = [
@@ -48,4 +54,10 @@ __all__ = [
     "check_wan_connectivity",
     "monitor_switch_ports",
     "get_network_performance",
+    "list_cloudflare_zones",
+    "check_zone_health",
+    "get_cloudflare_analytics",
+    "check_security_events",
+    "monitor_dns_records",
+    "get_cloudflare_status",
 ]

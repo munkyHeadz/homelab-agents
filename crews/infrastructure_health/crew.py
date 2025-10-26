@@ -29,6 +29,12 @@ from crews.tools import (
     check_wan_connectivity,
     monitor_switch_ports,
     get_network_performance,
+    list_cloudflare_zones,
+    check_zone_health,
+    get_cloudflare_analytics,
+    check_security_events,
+    monitor_dns_records,
+    get_cloudflare_status,
 )
 from crews.memory.incident_memory import IncidentMemory
 
@@ -74,6 +80,9 @@ monitor_agent = Agent(
         check_ap_health,
         check_wan_connectivity,
         get_network_performance,
+        check_zone_health,
+        check_security_events,
+        get_cloudflare_status,
     ],
     llm=llm,
     verbose=True,
@@ -104,6 +113,9 @@ analyst_agent = Agent(
         list_unifi_devices,
         monitor_network_clients,
         monitor_switch_ports,
+        list_cloudflare_zones,
+        get_cloudflare_analytics,
+        monitor_dns_records,
     ],
     llm=llm,
     verbose=True,

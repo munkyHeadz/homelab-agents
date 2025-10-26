@@ -35,6 +35,16 @@ from crews.tools.unifi_tools import (
     get_network_performance
 )
 
+# Import Cloudflare tools
+from crews.tools.cloudflare_tools import (
+    list_cloudflare_zones,
+    check_zone_health,
+    get_cloudflare_analytics,
+    check_security_events,
+    monitor_dns_records,
+    get_cloudflare_status
+)
+
 # Load environment variables
 load_dotenv()
 
