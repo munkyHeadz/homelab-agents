@@ -40,6 +40,12 @@ from crews.tools import (
     check_blocklist_status,
     monitor_dns_clients,
     get_adguard_protection_summary,
+    check_proxmox_node_health,
+    list_proxmox_vms,
+    check_proxmox_vm_status,
+    get_proxmox_storage_status,
+    get_proxmox_cluster_status,
+    get_proxmox_system_summary,
 )
 from crews.memory.incident_memory import IncidentMemory
 
@@ -90,6 +96,8 @@ monitor_agent = Agent(
         get_cloudflare_status,
         check_adguard_status,
         get_adguard_protection_summary,
+        check_proxmox_node_health,
+        get_proxmox_system_summary,
     ],
     llm=llm,
     verbose=True,
@@ -126,6 +134,10 @@ analyst_agent = Agent(
         get_dns_query_stats,
         check_blocklist_status,
         monitor_dns_clients,
+        list_proxmox_vms,
+        check_proxmox_vm_status,
+        get_proxmox_storage_status,
+        get_proxmox_cluster_status,
     ],
     llm=llm,
     verbose=True,

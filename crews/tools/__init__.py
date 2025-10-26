@@ -34,6 +34,12 @@ from .homelab_tools import (
     check_blocklist_status,
     monitor_dns_clients,
     get_adguard_protection_summary,
+    check_proxmox_node_health,
+    list_proxmox_vms,
+    check_proxmox_vm_status,
+    get_proxmox_storage_status,
+    get_proxmox_cluster_status,
+    get_proxmox_system_summary,
 )
 
 __all__ = [
@@ -70,4 +76,10 @@ __all__ = [
     "check_blocklist_status",
     "monitor_dns_clients",
     "get_adguard_protection_summary",
+    "check_proxmox_node_health",
+    "list_proxmox_vms",
+    "check_proxmox_vm_status",
+    "get_proxmox_storage_status",
+    "get_proxmox_cluster_status",
+    "get_proxmox_system_summary",
 ]

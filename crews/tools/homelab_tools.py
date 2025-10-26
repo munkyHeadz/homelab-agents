@@ -54,6 +54,16 @@ from crews.tools.adguard_tools import (
     get_adguard_protection_summary
 )
 
+# Import expanded Proxmox tools
+from crews.tools.proxmox_tools import (
+    check_proxmox_node_health,
+    list_proxmox_vms,
+    check_proxmox_vm_status,
+    get_proxmox_storage_status,
+    get_proxmox_cluster_status,
+    get_proxmox_system_summary
+)
+
 # Load environment variables
 load_dotenv()
 
