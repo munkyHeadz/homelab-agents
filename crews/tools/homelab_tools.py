@@ -25,6 +25,16 @@ from crews.tools.postgres_tools import (
     check_specific_database
 )
 
+# Import UniFi tools
+from crews.tools.unifi_tools import (
+    list_unifi_devices,
+    check_ap_health,
+    monitor_network_clients,
+    check_wan_connectivity,
+    monitor_switch_ports,
+    get_network_performance
+)
+
 # Load environment variables
 load_dotenv()
 

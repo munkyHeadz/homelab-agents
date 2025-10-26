@@ -23,6 +23,12 @@ from crews.tools import (
     check_database_sizes,
     monitor_database_connections,
     check_specific_database,
+    list_unifi_devices,
+    check_ap_health,
+    monitor_network_clients,
+    check_wan_connectivity,
+    monitor_switch_ports,
+    get_network_performance,
 )
 from crews.memory.incident_memory import IncidentMemory
 
@@ -65,6 +71,9 @@ monitor_agent = Agent(
         list_tailscale_devices,
         check_postgres_health,
         monitor_database_connections,
+        check_ap_health,
+        check_wan_connectivity,
+        get_network_performance,
     ],
     llm=llm,
     verbose=True,
@@ -92,6 +101,9 @@ analyst_agent = Agent(
         query_database_performance,
         check_database_sizes,
         check_specific_database,
+        list_unifi_devices,
+        monitor_network_clients,
+        monitor_switch_ports,
     ],
     llm=llm,
     verbose=True,

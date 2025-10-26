@@ -17,6 +17,12 @@ from .homelab_tools import (
     check_database_sizes,
     monitor_database_connections,
     check_specific_database,
+    list_unifi_devices,
+    check_ap_health,
+    monitor_network_clients,
+    check_wan_connectivity,
+    monitor_switch_ports,
+    get_network_performance,
 )
 
 __all__ = [
@@ -36,4 +42,10 @@ __all__ = [
     "check_database_sizes",
     "monitor_database_connections",
     "check_specific_database",
+    "list_unifi_devices",
+    "check_ap_health",
+    "monitor_network_clients",
+    "check_wan_connectivity",
+    "monitor_switch_ports",
+    "get_network_performance",
 ]
