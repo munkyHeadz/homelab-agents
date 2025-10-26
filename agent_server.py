@@ -12,7 +12,7 @@ import threading
 from flask import Flask, request, jsonify
 from apscheduler.schedulers.background import BackgroundScheduler
 from dotenv import load_dotenv
-from crews.infrastructure_health import handle_alert, scheduled_health_check
+from crews.infrastructure_health import handle_alert, scheduled_health_check, incident_memory
 
 # Load environment variables
 load_dotenv()  # Will automatically look for .env in current directory
@@ -42,10 +42,23 @@ scheduler = BackgroundScheduler()
 @app.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint for monitoring."""
+    memory_status = 'connected' if incident_memory else 'disconnected'
+    memory_incidents = 0
+    if incident_memory:
+        try:
+            stats = incident_memory.get_incident_stats()
+            memory_incidents = stats['total_incidents']
+        except Exception:
+            memory_status = 'error'
+
     return jsonify({
         'status': 'healthy',
         'service': 'homelab-ai-agents',
-        'version': '1.0.0'
+        'version': '1.1.0',
+        'memory': {
+            'status': memory_status,
+            'incidents': memory_incidents
+        }
     }), 200
 
 
@@ -124,6 +137,94 @@ def trigger_health_check():
     except Exception as e:
         logger.error(f"Error triggering health check: {e}", exc_info=True)
         return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/stats', methods=['GET'])
+def get_stats():
+    """Get incident memory statistics."""
+    try:
+        if not incident_memory:
+            return jsonify({
+                'status': 'error',
+                'message': 'Incident memory not initialized'
+            }), 503
+
+        stats = incident_memory.get_incident_stats()
+        return jsonify({
+            'status': 'success',
+            'memory': stats,
+            'service': 'homelab-ai-agents',
+            'version': '1.1.0'
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error retrieving stats: {e}", exc_info=True)
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/incidents', methods=['GET'])
+def get_recent_incidents():
+    """Get recent incidents with optional limit."""
+    try:
+        if not incident_memory:
+            return jsonify({
+                'status': 'error',
+                'message': 'Incident memory not initialized'
+            }), 503
+
+        limit = request.args.get('limit', 10, type=int)
+
+        # Query all incidents from Qdrant
+        similar = incident_memory.find_similar_incidents(
+            query_text="",  # Empty query returns all by default
+            limit=limit
+        )
+
+        return jsonify({
+            'status': 'success',
+            'count': len(similar),
+            'incidents': similar
+        }), 200
+
+    except Exception as e:
+        logger.error(f"Error retrieving incidents: {e}", exc_info=True)
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/metrics', methods=['GET'])
+def prometheus_metrics():
+    """Prometheus-compatible metrics endpoint."""
+    try:
+        metrics_lines = [
+            "# HELP ai_agents_incidents_total Total number of incidents stored",
+            "# TYPE ai_agents_incidents_total gauge",
+        ]
+
+        if incident_memory:
+            stats = incident_memory.get_incident_stats()
+            metrics_lines.append(f"ai_agents_incidents_total {stats['total_incidents']}")
+
+            metrics_lines.append("# HELP ai_agents_success_rate Incident resolution success rate")
+            metrics_lines.append("# TYPE ai_agents_success_rate gauge")
+            metrics_lines.append(f"ai_agents_success_rate {stats['success_rate'] / 100}")
+
+            metrics_lines.append("# HELP ai_agents_avg_resolution_seconds Average incident resolution time in seconds")
+            metrics_lines.append("# TYPE ai_agents_avg_resolution_seconds gauge")
+            metrics_lines.append(f"ai_agents_avg_resolution_seconds {stats['avg_resolution_time']}")
+
+            # Per-severity metrics
+            metrics_lines.append("# HELP ai_agents_incidents_by_severity Number of incidents by severity")
+            metrics_lines.append("# TYPE ai_agents_incidents_by_severity gauge")
+            for severity, count in stats['by_severity'].items():
+                metrics_lines.append(f'ai_agents_incidents_by_severity{{severity="{severity}"}} {count}')
+
+        metrics_lines.append("")  # Prometheus expects trailing newline
+
+        return "\n".join(metrics_lines), 200, {'Content-Type': 'text/plain; charset=utf-8'}
+
+    except Exception as e:
+        logger.error(f"Error generating metrics: {e}", exc_info=True)
+        return f"# Error: {str(e)}\n", 500, {'Content-Type': 'text/plain; charset=utf-8'}
 
 
 def run_scheduled_health_check():
