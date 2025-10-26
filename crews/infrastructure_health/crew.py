@@ -1,6 +1,8 @@
 """Infrastructure Health Crew - Autonomous homelab monitoring and self-healing."""
 
 import os
+import time
+from datetime import datetime
 from crewai import Agent, Task, Crew, Process
 from langchain_openai import ChatOpenAI
 from dotenv import load_dotenv
@@ -13,6 +15,7 @@ from crews.tools import (
     restart_lxc,
     send_telegram,
 )
+from crews.memory.incident_memory import IncidentMemory
 
 # Load environment variables
 load_dotenv('/home/munky/homelab-agents/.env')
@@ -24,6 +27,14 @@ llm = ChatOpenAI(
     api_key=os.getenv("OPENAI_API_KEY"),
     temperature=0.1
 )
+
+# Initialize incident memory for learning from past incidents
+try:
+    incident_memory = IncidentMemory(qdrant_url="http://localhost:6333")
+    print("✓ Incident memory system initialized")
+except Exception as e:
+    print(f"⚠ Warning: Could not initialize incident memory: {e}")
+    incident_memory = None
 
 # Agent 1: Infrastructure Monitor
 monitor_agent = Agent(
@@ -99,8 +110,26 @@ def handle_alert(alert_data: dict):
     Args:
         alert_data: Alert payload from Alertmanager
     """
+    start_time = time.time()
+
     alert_name = alert_data.get('alerts', [{}])[0].get('labels', {}).get('alertname', 'Unknown')
     alert_desc = alert_data.get('alerts', [{}])[0].get('annotations', {}).get('description', 'No description')
+    severity = alert_data.get('alerts', [{}])[0].get('labels', {}).get('severity', 'unknown')
+
+    # Retrieve similar past incidents for learning
+    historical_context = ""
+    if incident_memory:
+        try:
+            similar_incidents = incident_memory.find_similar_incidents(
+                query_text=f"{alert_name}: {alert_desc}",
+                limit=3,
+                severity_filter=severity if severity != 'unknown' else None
+            )
+            if similar_incidents:
+                historical_context = incident_memory.format_historical_context(similar_incidents)
+                print(f"✓ Found {len(similar_incidents)} similar past incidents for context")
+        except Exception as e:
+            print(f"⚠ Warning: Could not retrieve historical context: {e}")
 
     # Task 1: Detection and Initial Assessment
     detection_task = Task(
@@ -126,13 +155,15 @@ def handle_alert(alert_data: dict):
 
     # Task 2: Root Cause Analysis
     analysis_task = Task(
-        description="""
+        description=f"""
         Based on the Monitor's detection report, perform deep root cause analysis:
 
         1. Examine container/service logs for errors
         2. Check Prometheus metrics for anomalies (CPU, memory, disk, network)
         3. Correlate timeline of events
         4. Identify the specific failure point
+
+        {historical_context}
 
         Return a diagnostic report with:
         - Root cause explanation
@@ -204,6 +235,51 @@ def handle_alert(alert_data: dict):
     )
 
     result = crew.kickoff()
+
+    # Store incident in memory for future learning
+    if incident_memory:
+        try:
+            resolution_time = int(time.time() - start_time)
+
+            # Extract information from crew result
+            result_str = str(result).lower()
+
+            # Determine resolution status
+            if "resolved" in result_str or "success" in result_str or "fixed" in result_str:
+                resolution_status = "resolved"
+            elif "escalat" in result_str or "manual" in result_str or "fail" in result_str:
+                resolution_status = "escalated"
+            else:
+                resolution_status = "attempted"
+
+            # Extract affected systems (parse from detection task result)
+            affected_systems = [alert_name]  # Default to alert name
+
+            # Store the incident
+            incident_id = incident_memory.store_incident(
+                alert_name=alert_name,
+                description=alert_desc,
+                severity=severity,
+                affected_systems=affected_systems,
+                root_cause=f"Analysis performed by AI agents: {result_str[:200]}",
+                remediation_taken=f"Autonomous remediation executed: {result_str[200:400]}",
+                resolution_status=resolution_status,
+                resolution_time_seconds=resolution_time,
+                metadata={
+                    "timestamp": datetime.utcnow().isoformat(),
+                    "crew_result": result_str[:500]
+                }
+            )
+            print(f"✓ Incident stored in memory: {incident_id}")
+
+            # Log statistics
+            stats = incident_memory.get_incident_stats()
+            print(f"📊 Memory Stats: {stats['total_incidents']} incidents, "
+                  f"{stats['success_rate']:.1f}% success rate, "
+                  f"avg resolution: {stats['avg_resolution_time']}s")
+        except Exception as e:
+            print(f"⚠ Warning: Could not store incident in memory: {e}")
+
     return result
 
 
