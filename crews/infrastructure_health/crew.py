@@ -65,11 +65,13 @@ from crews.memory.incident_memory import IncidentMemory
 load_dotenv()
 
 # Initialize LLM - Using GPT-4o-mini (fast, cheap, works with CrewAI)
-# Cost: $0.38/month for ~100 incidents vs Claude issues with CrewAI routing
+# Optimized for minimal token usage
 llm = ChatOpenAI(
     model="gpt-4o-mini",
     api_key=os.getenv("OPENAI_API_KEY"),
-    temperature=0.1
+    temperature=0.1,
+    max_tokens=500,  # Limit response length to reduce costs
+    model_kwargs={"top_p": 0.9}  # Reduce sampling diversity
 )
 
 # Initialize incident memory for learning from past incidents
@@ -84,13 +86,8 @@ except Exception as e:
 # Agent 1: Infrastructure Monitor
 monitor_agent = Agent(
     role="Infrastructure Monitor",
-    goal="Continuously detect anomalies and issues across all homelab systems",
-    backstory="""You are an expert SRE with 15 years of experience monitoring complex
-    distributed systems. You have a keen eye for spotting anomalies before they become
-    critical issues. You specialize in Prometheus metrics analysis and container orchestration.
-
-    Your responsibility is to scan all metrics, identify problems, and immediately escalate
-    issues to the Analyst for root cause analysis.""",
+    goal="Detect issues across homelab systems",
+    backstory="Expert SRE monitoring distributed systems. Scan metrics, identify problems, escalate to Analyst.",
     tools=[
         query_prometheus,
         check_container_status,
@@ -118,21 +115,15 @@ monitor_agent = Agent(
         get_prometheus_runtime_info,
     ],
     llm=llm,
-    verbose=True,
-    allow_delegation=True,
+    verbose=False,  # Reduced verbosity to minimize token usage
+    allow_delegation=False,  # Disable delegation to reduce LLM calls
 )
 
 # Agent 2: Root Cause Analyst
 analyst_agent = Agent(
     role="Root Cause Analyst",
-    goal="Diagnose the exact cause of infrastructure issues through systematic investigation",
-    backstory="""You are a seasoned infrastructure detective with deep knowledge of
-    Linux systems, networking, container orchestration, and distributed systems. You excel
-    at correlating symptoms to find root causes.
-
-    When the Monitor identifies an issue, you dive deep into logs, metrics, and system
-    state to pinpoint exactly what went wrong and why. You provide detailed diagnostic
-    reports to the Healer.""",
+    goal="Diagnose infrastructure issues",
+    backstory="Infrastructure detective. Analyze logs and metrics to find root causes.",
     tools=[
         query_prometheus,
         check_container_logs,
@@ -164,40 +155,29 @@ analyst_agent = Agent(
         get_prometheus_config_status,
     ],
     llm=llm,
-    verbose=True,
-    allow_delegation=True,
+    verbose=False,  # Reduced verbosity to minimize token usage
+    allow_delegation=False,  # Disable delegation to reduce LLM calls
 )
 
 # Agent 3: Self-Healing Engineer
 healer_agent = Agent(
     role="Self-Healing Engineer",
-    goal="Automatically remediate infrastructure issues based on root cause analysis",
-    backstory="""You are an expert automation engineer who specializes in self-healing
-    infrastructure. You have extensive experience with incident response and know the
-    safest remediation strategies for common issues.
-
-    Based on the Analyst's diagnosis, you execute precise fixes - restarting containers,
-    clearing caches, adjusting resource limits, etc. You always verify the fix worked
-    before reporting success.""",
+    goal="Remediate infrastructure issues",
+    backstory="Automation engineer. Execute fixes based on diagnosis. Verify success.",
     tools=[restart_container, restart_lxc, check_container_status, check_lxc_status],
     llm=llm,
-    verbose=True,
+    verbose=False,  # Reduced verbosity to minimize token usage
     allow_delegation=False,
 )
 
 # Agent 4: Communications Coordinator
 communicator_agent = Agent(
     role="Communications Coordinator",
-    goal="Keep humans informed of all incidents, investigations, and resolutions",
-    backstory="""You are a technical communications expert who translates complex
-    infrastructure events into clear, actionable summaries for humans. You know when
-    to alert immediately vs. when to send a summary report.
-
-    You track the entire incident lifecycle - from detection through resolution - and
-    provide concise Telegram notifications with just enough detail.""",
+    goal="Inform humans of incidents and resolutions",
+    backstory="Technical communicator. Translate events into clear, concise summaries.",
     tools=[send_telegram],
     llm=llm,
-    verbose=True,
+    verbose=False,  # Reduced verbosity to minimize token usage
     allow_delegation=False,
 )
 
@@ -221,107 +201,69 @@ def handle_alert(alert_data: dict):
         try:
             similar_incidents = incident_memory.find_similar_incidents(
                 query_text=f"{alert_name}: {alert_desc}",
-                limit=3,
+                limit=1,  # Reduced from 3 to 1 to save tokens
                 severity_filter=severity if severity != 'unknown' else None
             )
             if similar_incidents:
                 historical_context = incident_memory.format_historical_context(similar_incidents)
-                print(f"✓ Found {len(similar_incidents)} similar past incidents for context")
+                print(f"✓ Found {len(similar_incidents)} similar past incident for context")
         except Exception as e:
             print(f"⚠ Warning: Could not retrieve historical context: {e}")
 
     # Task 1: Detection and Initial Assessment
     detection_task = Task(
-        description=f"""
-        An alert has been triggered: {alert_name}
-        Description: {alert_desc}
+        description=f"""Alert: {alert_name}
+Desc: {alert_desc}
 
-        Your task:
-        1. Verify the alert is legitimate using Prometheus metrics
-        2. Assess the severity and scope of the issue
-        3. Identify which services/containers are affected
-        4. Provide a clear summary for the Analyst to investigate
+1. Verify alert validity
+2. Identify affected systems
+3. Assess severity
 
-        Return a structured report with:
-        - Alert validity (true/false positive)
-        - Affected systems
-        - Severity level (critical/warning/info)
-        - Initial observations
-        """,
+Return: validity, systems, severity, observations""",
         agent=monitor_agent,
-        expected_output="Structured detection report with affected systems and severity"
+        expected_output="Detection report: validity, systems, severity"
     )
 
     # Task 2: Root Cause Analysis
     analysis_task = Task(
-        description=f"""
-        Based on the Monitor's detection report, perform deep root cause analysis:
+        description=f"""Based on Monitor report, find root cause:
+1. Check logs
+2. Check metrics
+3. Correlate events
 
-        1. Examine container/service logs for errors
-        2. Check Prometheus metrics for anomalies (CPU, memory, disk, network)
-        3. Correlate timeline of events
-        4. Identify the specific failure point
+{historical_context}
 
-        {historical_context}
-
-        Return a diagnostic report with:
-        - Root cause explanation
-        - Timeline of events
-        - Recommended remediation steps
-        - Confidence level in diagnosis
-        """,
+Return: cause, timeline, fix recommendation""",
         agent=analyst_agent,
-        expected_output="Root cause analysis with remediation recommendations",
+        expected_output="Root cause with fix recommendation",
         context=[detection_task]
     )
 
     # Task 3: Auto-Remediation
     healing_task = Task(
-        description="""
-        Based on the Analyst's diagnosis, execute the safest remediation:
+        description="""Execute fix from diagnosis:
+1. Choose least disruptive fix
+2. Execute action
+3. Verify fix worked
 
-        1. Choose the least disruptive fix (restart container < restart LXC < manual intervention)
-        2. Execute the remediation action
-        3. Wait 30 seconds and verify the fix worked
-        4. If still broken, try next level of remediation
-        5. If all auto-fixes fail, escalate to humans
-
-        Return a remediation report with:
-        - Action taken
-        - Success/failure status
-        - Post-fix verification results
-        - Any follow-up recommendations
-        """,
+Return: action, status, verification""",
         agent=healer_agent,
-        expected_output="Remediation report with success status and verification",
+        expected_output="Remediation status",
         context=[analysis_task]
     )
 
     # Task 4: Human Communication
     communication_task = Task(
-        description="""
-        Summarize the entire incident for the human operator via Telegram:
+        description="""Send Telegram summary:
+🚨 *Incident*
+Issue: [what broke]
+Cause: [root cause]
+Fix: [action taken]
+Status: [resolved/escalated]
 
-        Create a concise message with:
-        - What broke
-        - What caused it
-        - What we did to fix it
-        - Current status
-        - Any required human action
-
-        Use Markdown formatting for clarity.
-        Keep it under 500 characters if possible.
-
-        Use this format:
-        🚨 *Incident Report*
-        *Issue*: [what broke]
-        *Cause*: [root cause]
-        *Action*: [what agents did]
-        *Status*: [resolved/escalated]
-        [Next steps if needed]
-        """,
+Keep under 300 chars.""",
         agent=communicator_agent,
-        expected_output="Telegram notification sent with incident summary",
+        expected_output="Telegram sent",
         context=[detection_task, analysis_task, healing_task]
     )
 
@@ -330,7 +272,7 @@ def handle_alert(alert_data: dict):
         agents=[monitor_agent, analyst_agent, healer_agent, communicator_agent],
         tasks=[detection_task, analysis_task, healing_task, communication_task],
         process=Process.sequential,
-        verbose=True
+        verbose=False  # Reduced verbosity to minimize token usage
     )
 
     result = crew.kickoff()
@@ -388,21 +330,15 @@ def scheduled_health_check():
     Proactively looks for issues before alerts fire.
     """
     proactive_task = Task(
-        description="""
-        Perform a proactive health check of the entire homelab:
+        description="""Quick health check:
+1. Check Prometheus 'up' metrics
+2. Check Docker/LXC containers
+3. Check VPN connectivity
+4. Report issues only
 
-        1. Query Prometheus for all 'up' metrics
-        2. Check all Docker containers are running
-        3. Check all LXC containers are running
-        4. Monitor Tailscale VPN health and critical infrastructure connectivity
-        5. Look for any concerning metrics (high CPU, memory, disk usage)
-        6. If everything looks good, no action needed
-        7. If issues found, escalate to full incident response
-
-        Return a health status report.
-        """,
+Return: status (OK or issues found)""",
         agent=monitor_agent,
-        expected_output="Health check report with status of all systems"
+        expected_output="Health status"
     )
 
     crew = Crew(
