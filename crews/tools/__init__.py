@@ -29,6 +29,11 @@ from .homelab_tools import (
     check_security_events,
     monitor_dns_records,
     get_cloudflare_status,
+    check_adguard_status,
+    get_dns_query_stats,
+    check_blocklist_status,
+    monitor_dns_clients,
+    get_adguard_protection_summary,
 )
 
 __all__ = [
@@ -60,4 +65,9 @@ __all__ = [
     "check_security_events",
     "monitor_dns_records",
     "get_cloudflare_status",
+    "check_adguard_status",
+    "get_dns_query_stats",
+    "check_blocklist_status",
+    "monitor_dns_clients",
+    "get_adguard_protection_summary",
 ]

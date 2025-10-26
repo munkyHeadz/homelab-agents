@@ -45,6 +45,15 @@ from crews.tools.cloudflare_tools import (
     get_cloudflare_status
 )
 
+# Import AdGuard tools
+from crews.tools.adguard_tools import (
+    check_adguard_status,
+    get_dns_query_stats,
+    check_blocklist_status,
+    monitor_dns_clients,
+    get_adguard_protection_summary
+)
+
 # Load environment variables
 load_dotenv()
 

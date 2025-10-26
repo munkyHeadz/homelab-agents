@@ -35,6 +35,11 @@ from crews.tools import (
     check_security_events,
     monitor_dns_records,
     get_cloudflare_status,
+    check_adguard_status,
+    get_dns_query_stats,
+    check_blocklist_status,
+    monitor_dns_clients,
+    get_adguard_protection_summary,
 )
 from crews.memory.incident_memory import IncidentMemory
 
@@ -83,6 +88,8 @@ monitor_agent = Agent(
         check_zone_health,
         check_security_events,
         get_cloudflare_status,
+        check_adguard_status,
+        get_adguard_protection_summary,
     ],
     llm=llm,
     verbose=True,
@@ -116,6 +123,9 @@ analyst_agent = Agent(
         list_cloudflare_zones,
         get_cloudflare_analytics,
         monitor_dns_records,
+        get_dns_query_stats,
+        check_blocklist_status,
+        monitor_dns_clients,
     ],
     llm=llm,
     verbose=True,
