@@ -1,0 +1,441 @@
+{
+  "dashboard": {
+    "title": "AI Agents - Autonomous Incident Response",
+    "tags": ["ai-agents", "incidents", "automation"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 1,
+    "refresh": "30s",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Total Incidents",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 0, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "ai_agents_incidents_total",
+            "refId": "A",
+            "datasource": {"type": "prometheus", "uid": "ff1zlkj7nz9xca"}
+          }
+        ],
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"]
+          },
+          "text": {},
+          "textMode": "value_and_name",
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "blue"}
+              ]
+            },
+            "unit": "short"
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Success Rate",
+        "type": "stat",
+        "gridPos": {"x": 6, "y": 0, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "ai_agents_success_rate * 100",
+            "refId": "A",
+            "datasource": {"type": "prometheus", "uid": "ff1zlkj7nz9xca"}
+          }
+        ],
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"]
+          },
+          "text": {},
+          "textMode": "value_and_name",
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 80, "color": "yellow"},
+                {"value": 95, "color": "green"}
+              ]
+            },
+            "unit": "percent",
+            "max": 100,
+            "min": 0
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Average Resolution Time",
+        "type": "stat",
+        "gridPos": {"x": 12, "y": 0, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "ai_agents_avg_resolution_seconds",
+            "refId": "A",
+            "datasource": {"type": "prometheus", "uid": "ff1zlkj7nz9xca"}
+          }
+        ],
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"]
+          },
+          "text": {},
+          "textMode": "value_and_name",
+          "colorMode": "value",
+          "graphMode": "area",
+          "justifyMode": "auto"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 120, "color": "yellow"},
+                {"value": 300, "color": "red"}
+              ]
+            },
+            "unit": "s"
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Service Status",
+        "type": "stat",
+        "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "up{job=\"ai-agents\"}",
+            "refId": "A",
+            "datasource": {"type": "prometheus", "uid": "ff1zlkj7nz9xca"}
+          }
+        ],
+        "options": {
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"]
+          },
+          "text": {},
+          "textMode": "value_and_name",
+          "colorMode": "background",
+          "graphMode": "none",
+          "justifyMode": "auto"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "mappings": [
+              {"type": "value", "options": {"0": {"text": "DOWN", "color": "red"}}},
+              {"type": "value", "options": {"1": {"text": "UP", "color": "green"}}}
+            ],
+            "color": {"mode": "thresholds"},
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 1, "color": "green"}
+              ]
+            },
+            "unit": "short"
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Incident Resolution Time Trend",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 4, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "ai_agents_avg_resolution_seconds",
+            "refId": "A",
+            "legendFormat": "Avg Resolution Time",
+            "datasource": {"type": "prometheus", "uid": "ff1zlkj7nz9xca"}
+          }
+        ],
+        "options": {
+          "legend": {
+            "calcs": ["mean", "lastNotNull"],
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {"mode": "single", "sort": "none"}
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "Seconds",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 20,
+              "gradientMode": "none",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "pointSize": 5,
+              "showPoints": "auto",
+              "spanNulls": false
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 120, "color": "yellow"},
+                {"value": 300, "color": "red"}
+              ]
+            },
+            "unit": "s"
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Incidents by Severity",
+        "type": "piechart",
+        "gridPos": {"x": 12, "y": 4, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "ai_agents_incidents_by_severity",
+            "refId": "A",
+            "legendFormat": "{{severity}}",
+            "datasource": {"type": "prometheus", "uid": "ff1zlkj7nz9xca"}
+          }
+        ],
+        "options": {
+          "legend": {
+            "displayMode": "table",
+            "placement": "right",
+            "values": ["value", "percent"]
+          },
+          "pieType": "pie",
+          "tooltip": {"mode": "single", "sort": "none"}
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "unit": "short"
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "critical"},
+              "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]
+            },
+            {
+              "matcher": {"id": "byName", "options": "warning"},
+              "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "yellow"}}]
+            },
+            {
+              "matcher": {"id": "byName", "options": "info"},
+              "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "blue"}}]
+            }
+          ]
+        }
+      },
+      {
+        "id": 7,
+        "title": "Total Incidents Over Time",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 12, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "ai_agents_incidents_total",
+            "refId": "A",
+            "legendFormat": "Total Incidents",
+            "datasource": {"type": "prometheus", "uid": "ff1zlkj7nz9xca"}
+          }
+        ],
+        "options": {
+          "legend": {
+            "calcs": ["lastNotNull", "delta"],
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {"mode": "single", "sort": "none"}
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "Count",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 20,
+              "gradientMode": "none",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "pointSize": 5,
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {"mode": "none"}
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "blue"}
+              ]
+            },
+            "unit": "short"
+          }
+        }
+      },
+      {
+        "id": 8,
+        "title": "Success Rate Trend",
+        "type": "timeseries",
+        "gridPos": {"x": 12, "y": 12, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "ai_agents_success_rate * 100",
+            "refId": "A",
+            "legendFormat": "Success Rate %",
+            "datasource": {"type": "prometheus", "uid": "ff1zlkj7nz9xca"}
+          }
+        ],
+        "options": {
+          "legend": {
+            "calcs": ["mean", "lastNotNull"],
+            "displayMode": "list",
+            "placement": "bottom"
+          },
+          "tooltip": {"mode": "single", "sort": "none"}
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "thresholds"},
+            "custom": {
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "Percent",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 20,
+              "gradientMode": "scheme",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "pointSize": 5,
+              "showPoints": "auto",
+              "spanNulls": false
+            },
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 80, "color": "yellow"},
+                {"value": 95, "color": "green"}
+              ]
+            },
+            "unit": "percent",
+            "max": 100,
+            "min": 0
+          }
+        }
+      },
+      {
+        "id": 9,
+        "title": "Critical vs Warning Incidents",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 20, "w": 24, "h": 8},
+        "targets": [
+          {
+            "expr": "ai_agents_incidents_by_severity{severity=\"critical\"}",
+            "refId": "A",
+            "legendFormat": "Critical",
+            "datasource": {"type": "prometheus", "uid": "ff1zlkj7nz9xca"}
+          },
+          {
+            "expr": "ai_agents_incidents_by_severity{severity=\"warning\"}",
+            "refId": "B",
+            "legendFormat": "Warning",
+            "datasource": {"type": "prometheus", "uid": "ff1zlkj7nz9xca"}
+          }
+        ],
+        "options": {
+          "legend": {
+            "calcs": ["lastNotNull", "delta"],
+            "displayMode": "table",
+            "placement": "right"
+          },
+          "tooltip": {"mode": "multi", "sort": "desc"}
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {"mode": "palette-classic"},
+            "custom": {
+              "axisCenteredZero": false,
+              "axisColorMode": "text",
+              "axisLabel": "Count",
+              "axisPlacement": "auto",
+              "barAlignment": 0,
+              "drawStyle": "line",
+              "fillOpacity": 10,
+              "gradientMode": "none",
+              "lineInterpolation": "smooth",
+              "lineWidth": 2,
+              "pointSize": 5,
+              "showPoints": "auto",
+              "spanNulls": false,
+              "stacking": {"mode": "none"}
+            },
+            "unit": "short"
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "Critical"},
+              "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}]
+            },
+            {
+              "matcher": {"id": "byName", "options": "Warning"},
+              "properties": [{"id": "color", "value": {"mode": "fixed", "fixedColor": "yellow"}}]
+            }
+          ]
+        }
+      }
+    ],
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "timepicker": {},
+    "editable": true,
+    "fiscalYearStartMonth": 0,
+    "graphTooltip": 0,
+    "links": [],
+    "liveNow": false,
+    "style": "dark",
+    "templating": {"list": []},
+    "uid": "ai-agents-dashboard",
+    "weekStart": ""
+  },
+  "folderUid": "",
+  "message": "AI Agents Autonomous Incident Response Dashboard",
+  "overwrite": true
+}
