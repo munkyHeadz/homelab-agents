@@ -202,20 +202,26 @@ def prometheus_metrics():
 
         if incident_memory:
             stats = incident_memory.get_incident_stats()
-            metrics_lines.append(f"ai_agents_incidents_total {stats['total_incidents']}")
+            # Handle case where stats may be empty dict if Qdrant errors occur
+            total_incidents = stats.get('total_incidents', 0)
+            success_rate = stats.get('success_rate', 0)
+            avg_resolution_time = stats.get('avg_resolution_time', 0)
+            by_severity = stats.get('by_severity', {})
+
+            metrics_lines.append(f"ai_agents_incidents_total {total_incidents}")
 
             metrics_lines.append("# HELP ai_agents_success_rate Incident resolution success rate")
             metrics_lines.append("# TYPE ai_agents_success_rate gauge")
-            metrics_lines.append(f"ai_agents_success_rate {stats['success_rate'] / 100}")
+            metrics_lines.append(f"ai_agents_success_rate {success_rate / 100}")
 
             metrics_lines.append("# HELP ai_agents_avg_resolution_seconds Average incident resolution time in seconds")
             metrics_lines.append("# TYPE ai_agents_avg_resolution_seconds gauge")
-            metrics_lines.append(f"ai_agents_avg_resolution_seconds {stats['avg_resolution_time']}")
+            metrics_lines.append(f"ai_agents_avg_resolution_seconds {avg_resolution_time}")
 
             # Per-severity metrics
             metrics_lines.append("# HELP ai_agents_incidents_by_severity Number of incidents by severity")
             metrics_lines.append("# TYPE ai_agents_incidents_by_severity gauge")
-            for severity, count in stats['by_severity'].items():
+            for severity, count in by_severity.items():
                 metrics_lines.append(f'ai_agents_incidents_by_severity{{severity="{severity}"}} {count}')
 
         metrics_lines.append("")  # Prometheus expects trailing newline

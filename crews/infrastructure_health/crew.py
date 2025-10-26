@@ -344,15 +344,18 @@ def scheduled_health_check():
 
     result = crew.kickoff()
 
+    # Extract text from CrewOutput object
+    result_text = str(result.raw) if hasattr(result, 'raw') else str(result)
+
     # If issues found, trigger full incident response
-    if "issue" in result.lower() or "problem" in result.lower() or "down" in result.lower():
-        print(f"Proactive check found issues: {result}")
+    if "issue" in result_text.lower() or "problem" in result_text.lower() or "down" in result_text.lower():
+        print(f"Proactive check found issues: {result_text}")
         # Trigger full alert handling
         handle_alert({
             'alerts': [{
                 'labels': {'alertname': 'ProactiveHealthCheckFailed'},
-                'annotations': {'description': f'Scheduled health check detected: {result}'}
+                'annotations': {'description': f'Scheduled health check detected: {result_text}'}
             }]
         })
 
-    return result
+    return result_text

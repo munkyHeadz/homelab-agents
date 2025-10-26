@@ -1,0 +1,430 @@
+# Alertmanager Rules for Tailscale and PostgreSQL Integrations
+# Phase 11: AI Agents System
+# Created: 2025-10-26
+
+groups:
+  # ============================================================================
+  # Tailscale Network Monitoring Alerts
+  # ============================================================================
+  - name: tailscale_network
+    interval: 30s
+    rules:
+      # Critical Infrastructure Device Offline
+      - alert: TailscaleCriticalDeviceOffline
+        expr: |
+          tailscale_device_online{device=~"docker-gateway|postgres|grafana|prometheus|fjeld|portal"} == 0
+        for: 5m
+        labels:
+          severity: critical
+          category: network
+          integration: tailscale
+        annotations:
+          summary: "Critical Tailscale device {{ $labels.device }} is offline"
+          description: |
+            Critical infrastructure device {{ $labels.device }} has been offline for more than 5 minutes.
+            This may impact service availability.
+
+            Device: {{ $labels.device }}
+            Tailscale IP: {{ $labels.tailscale_ip }}
+            Last Seen: {{ $labels.last_seen }}
+
+            Impact: HIGH - Core infrastructure affected
+          runbook_url: "https://docs.example.com/runbooks/tailscale-device-offline"
+
+      # Any Device Offline for Extended Period
+      - alert: TailscaleDeviceOfflineExtended
+        expr: |
+          tailscale_device_last_seen > 86400
+        for: 10m
+        labels:
+          severity: warning
+          category: network
+          integration: tailscale
+        annotations:
+          summary: "Tailscale device {{ $labels.device }} offline for >24h"
+          description: |
+            Device {{ $labels.device }} has been offline for more than 24 hours.
+
+            Device: {{ $labels.device }}
+            Last Seen: {{ $labels.last_seen }} seconds ago
+
+            Impact: MEDIUM - Device may need attention
+          runbook_url: "https://docs.example.com/runbooks/tailscale-device-extended-offline"
+
+      # High Percentage of Devices Offline
+      - alert: TailscaleHighOfflineRate
+        expr: |
+          (sum(tailscale_device_online == 0) / count(tailscale_device_online)) * 100 > 40
+        for: 10m
+        labels:
+          severity: warning
+          category: network
+          integration: tailscale
+        annotations:
+          summary: "High percentage of Tailscale devices offline"
+          description: |
+            More than 40% of Tailscale devices are currently offline.
+
+            Offline Count: {{ $value }}%
+            Total Devices: {{ $labels.total_devices }}
+
+            This may indicate a network-wide issue.
+            Impact: MEDIUM - Multiple devices affected
+          runbook_url: "https://docs.example.com/runbooks/tailscale-high-offline-rate"
+
+      # Tailscale Client Updates Available
+      - alert: TailscaleUpdatesAvailable
+        expr: |
+          tailscale_device_update_available > 0
+        for: 7d
+        labels:
+          severity: info
+          category: maintenance
+          integration: tailscale
+        annotations:
+          summary: "Tailscale updates available for {{ $labels.device }}"
+          description: |
+            Device {{ $labels.device }} has Tailscale updates available.
+
+            Device: {{ $labels.device }}
+            Current Version: {{ $labels.version }}
+            Days Outdated: 7+
+
+            Impact: LOW - Informational only
+          runbook_url: "https://docs.example.com/runbooks/tailscale-updates"
+
+      # VPN Key Expiry Warning
+      - alert: TailscaleKeyExpirySoon
+        expr: |
+          tailscale_device_key_expiry < 604800
+        for: 1h
+        labels:
+          severity: warning
+          category: security
+          integration: tailscale
+        annotations:
+          summary: "Tailscale key expiring soon for {{ $labels.device }}"
+          description: |
+            Authentication key for {{ $labels.device }} will expire in less than 7 days.
+
+            Device: {{ $labels.device }}
+            Expires In: {{ $value }} seconds
+            Action Required: Renew authentication key
+
+            Impact: MEDIUM - Device will disconnect if not renewed
+          runbook_url: "https://docs.example.com/runbooks/tailscale-key-expiry"
+
+  # ============================================================================
+  # PostgreSQL Database Monitoring Alerts
+  # ============================================================================
+  - name: postgresql_database
+    interval: 30s
+    rules:
+      # Database Down
+      - alert: PostgreSQLDown
+        expr: |
+          pg_up == 0
+        for: 1m
+        labels:
+          severity: critical
+          category: database
+          integration: postgresql
+        annotations:
+          summary: "PostgreSQL database is down"
+          description: |
+            PostgreSQL server at {{ $labels.instance }} is not responding.
+
+            Instance: {{ $labels.instance }}
+            Database: {{ $labels.database }}
+
+            Impact: CRITICAL - All database services affected
+          runbook_url: "https://docs.example.com/runbooks/postgresql-down"
+
+      # Connection Pool High Usage
+      - alert: PostgreSQLConnectionPoolHigh
+        expr: |
+          (pg_stat_activity_count / pg_settings_max_connections) * 100 > 75
+        for: 5m
+        labels:
+          severity: warning
+          category: database
+          integration: postgresql
+        annotations:
+          summary: "PostgreSQL connection pool usage is high"
+          description: |
+            PostgreSQL connection pool on {{ $labels.instance }} is at {{ $value }}% capacity.
+
+            Current Connections: {{ $labels.connections }}
+            Max Connections: {{ $labels.max_connections }}
+            Usage: {{ $value }}%
+
+            This may indicate a connection leak or high load.
+            Impact: MEDIUM - Risk of connection exhaustion
+          runbook_url: "https://docs.example.com/runbooks/postgresql-connection-pool-high"
+
+      # Connection Pool Critical
+      - alert: PostgreSQLConnectionPoolCritical
+        expr: |
+          (pg_stat_activity_count / pg_settings_max_connections) * 100 > 90
+        for: 2m
+        labels:
+          severity: critical
+          category: database
+          integration: postgresql
+        annotations:
+          summary: "PostgreSQL connection pool is nearly exhausted"
+          description: |
+            PostgreSQL connection pool on {{ $labels.instance }} is at {{ $value }}% capacity (CRITICAL).
+
+            Current Connections: {{ $labels.connections }}
+            Max Connections: {{ $labels.max_connections }}
+            Usage: {{ $value }}%
+
+            Database may start rejecting connections.
+            Impact: CRITICAL - Imminent service disruption
+          runbook_url: "https://docs.example.com/runbooks/postgresql-connection-pool-critical"
+
+      # Too Many Idle Connections
+      - alert: PostgreSQLTooManyIdleConnections
+        expr: |
+          pg_stat_activity_count{state="idle"} > 50
+        for: 10m
+        labels:
+          severity: warning
+          category: database
+          integration: postgresql
+        annotations:
+          summary: "Too many idle PostgreSQL connections"
+          description: |
+            PostgreSQL has {{ $value }} idle connections on {{ $labels.instance }}.
+
+            Idle Connections: {{ $value }}
+            Database: {{ $labels.database }}
+
+            This may indicate a connection leak in application code.
+            Impact: MEDIUM - Connection pool may be wasted
+          runbook_url: "https://docs.example.com/runbooks/postgresql-idle-connections"
+
+      # Long Running Query
+      - alert: PostgreSQLLongRunningQuery
+        expr: |
+          pg_stat_activity_max_tx_duration > 300
+        for: 5m
+        labels:
+          severity: warning
+          category: database
+          integration: postgresql
+        annotations:
+          summary: "Long running PostgreSQL query detected"
+          description: |
+            A query has been running for more than 5 minutes on {{ $labels.instance }}.
+
+            Duration: {{ $value }} seconds
+            Database: {{ $labels.database }}
+            Client: {{ $labels.client_addr }}
+
+            This may indicate a slow query or blocking lock.
+            Impact: MEDIUM - Database performance affected
+          runbook_url: "https://docs.example.com/runbooks/postgresql-slow-query"
+
+      # Query Blocking Detected
+      - alert: PostgreSQLBlockingQuery
+        expr: |
+          pg_stat_activity_blocked_queries > 0
+        for: 2m
+        labels:
+          severity: warning
+          category: database
+          integration: postgresql
+        annotations:
+          summary: "PostgreSQL queries are blocked"
+          description: |
+            {{ $value }} queries are currently blocked on {{ $labels.instance }}.
+
+            Blocked Count: {{ $value }}
+            Database: {{ $labels.database }}
+
+            This indicates lock contention in the database.
+            Impact: MEDIUM - Query performance degraded
+          runbook_url: "https://docs.example.com/runbooks/postgresql-blocking-queries"
+
+      # Low Cache Hit Ratio
+      - alert: PostgreSQLLowCacheHitRatio
+        expr: |
+          pg_stat_database_blks_hit_rate < 90
+        for: 15m
+        labels:
+          severity: warning
+          category: database
+          integration: postgresql
+        annotations:
+          summary: "PostgreSQL cache hit ratio is low"
+          description: |
+            PostgreSQL cache hit ratio on {{ $labels.instance }} is {{ $value }}% (below 90%).
+
+            Cache Hit Ratio: {{ $value }}%
+            Database: {{ $labels.database }}
+
+            This may indicate insufficient shared_buffers or query inefficiency.
+            Impact: MEDIUM - Database performance affected
+          runbook_url: "https://docs.example.com/runbooks/postgresql-cache-hit-ratio"
+
+      # Database Size Growth
+      - alert: PostgreSQLDatabaseSizeGrowth
+        expr: |
+          rate(pg_database_size_bytes[1h]) > 1073741824
+        for: 2h
+        labels:
+          severity: info
+          category: capacity
+          integration: postgresql
+        annotations:
+          summary: "PostgreSQL database growing rapidly"
+          description: |
+            Database {{ $labels.database }} on {{ $labels.instance }} is growing rapidly.
+
+            Growth Rate: {{ $value | humanize }}B/hour (>1GB/hour)
+            Database: {{ $labels.database }}
+
+            This may indicate excessive logging, data retention, or bulk inserts.
+            Impact: LOW - Informational capacity planning
+          runbook_url: "https://docs.example.com/runbooks/postgresql-database-growth"
+
+      # Dead Tuples High
+      - alert: PostgreSQLDeadTuplesHigh
+        expr: |
+          (pg_stat_user_tables_n_dead_tup / (pg_stat_user_tables_n_live_tup + pg_stat_user_tables_n_dead_tup)) * 100 > 20
+        for: 30m
+        labels:
+          severity: warning
+          category: maintenance
+          integration: postgresql
+        annotations:
+          summary: "High percentage of dead tuples in {{ $labels.table }}"
+          description: |
+            Table {{ $labels.table }} has {{ $value }}% dead tuples.
+
+            Dead Tuples: {{ $labels.n_dead_tup }}
+            Live Tuples: {{ $labels.n_live_tup }}
+            Percentage: {{ $value }}%
+
+            This may indicate need for VACUUM or autovacuum tuning.
+            Impact: MEDIUM - Query performance may degrade
+          runbook_url: "https://docs.example.com/runbooks/postgresql-dead-tuples"
+
+      # Replication Lag (if replication is configured)
+      - alert: PostgreSQLReplicationLag
+        expr: |
+          pg_replication_lag_seconds > 60
+        for: 5m
+        labels:
+          severity: warning
+          category: replication
+          integration: postgresql
+        annotations:
+          summary: "PostgreSQL replication lag is high"
+          description: |
+            Replication lag on {{ $labels.instance }} is {{ $value }} seconds (>60s).
+
+            Lag: {{ $value }} seconds
+            Replica: {{ $labels.replica }}
+
+            This may indicate network issues or replica overload.
+            Impact: MEDIUM - Data consistency risk
+          runbook_url: "https://docs.example.com/runbooks/postgresql-replication-lag"
+
+  # ============================================================================
+  # Cross-Integration Health Checks
+  # ============================================================================
+  - name: ai_agents_integration_health
+    interval: 60s
+    rules:
+      # AI Agents Service Health Check
+      - alert: AIAgentsServiceDown
+        expr: |
+          up{job="ai-agents"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          category: monitoring
+          integration: ai-agents
+        annotations:
+          summary: "AI Agents service is down"
+          description: |
+            The AI Agents webhook service is not responding.
+
+            Instance: {{ $labels.instance }}
+            Job: {{ $labels.job }}
+
+            Autonomous incident response is unavailable.
+            Impact: CRITICAL - No automated remediation
+          runbook_url: "https://docs.example.com/runbooks/ai-agents-service-down"
+
+      # Memory Storage Issues
+      - alert: AIAgentsMemoryStorageError
+        expr: |
+          ai_agents_memory_status == 0
+        for: 5m
+        labels:
+          severity: warning
+          category: monitoring
+          integration: ai-agents
+        annotations:
+          summary: "AI Agents memory storage errors"
+          description: |
+            The AI Agents system cannot connect to Qdrant vector database.
+
+            Memory Status: Error
+            Impact: MEDIUM - Learning disabled, incident response still functional
+
+            Incidents will not be stored for future learning.
+          runbook_url: "https://docs.example.com/runbooks/ai-agents-memory-error"
+
+      # High Incident Resolution Time
+      - alert: AIAgentsSlowResolution
+        expr: |
+          ai_agents_incident_resolution_seconds > 300
+        for: 3m
+        labels:
+          severity: warning
+          category: performance
+          integration: ai-agents
+        annotations:
+          summary: "AI Agents taking too long to resolve incidents"
+          description: |
+            Recent incident took {{ $value }} seconds to resolve (>5 minutes).
+
+            Duration: {{ $value }} seconds
+            Alert: {{ $labels.alertname }}
+
+            This may indicate tool performance issues or API timeouts.
+            Impact: MEDIUM - Slower incident response
+          runbook_url: "https://docs.example.com/runbooks/ai-agents-slow-resolution"
+
+# ============================================================================
+# Alert Routing Configuration (for reference)
+# ============================================================================
+# Add to alertmanager.yml:
+#
+# route:
+#   routes:
+#     - match:
+#         integration: tailscale
+#       receiver: homelab-ai-agents
+#       continue: true
+#     - match:
+#         integration: postgresql
+#       receiver: homelab-ai-agents
+#       continue: true
+#     - match:
+#         severity: critical
+#       receiver: homelab-ai-agents
+#       group_wait: 10s
+#       group_interval: 10s
+#       repeat_interval: 4h
+#
+# receivers:
+#   - name: homelab-ai-agents
+#     webhook_configs:
+#       - url: http://100.67.169.111:5000/alert
+#         send_resolved: true
