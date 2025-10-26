@@ -46,6 +46,12 @@ from .homelab_tools import (
     get_entity_history,
     check_automation_status,
     get_homeassistant_summary,
+    check_prometheus_targets,
+    check_prometheus_rules,
+    get_prometheus_alerts,
+    check_prometheus_tsdb,
+    get_prometheus_runtime_info,
+    get_prometheus_config_status,
 )
 
 __all__ = [
@@ -94,4 +100,10 @@ __all__ = [
     "get_entity_history",
     "check_automation_status",
     "get_homeassistant_summary",
+    "check_prometheus_targets",
+    "check_prometheus_rules",
+    "get_prometheus_alerts",
+    "check_prometheus_tsdb",
+    "get_prometheus_runtime_info",
+    "get_prometheus_config_status",
 ]

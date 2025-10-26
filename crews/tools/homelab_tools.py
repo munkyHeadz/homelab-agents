@@ -74,6 +74,16 @@ from crews.tools.homeassistant_tools import (
     get_homeassistant_summary
 )
 
+# Import expanded Prometheus tools
+from crews.tools.prometheus_tools import (
+    check_prometheus_targets,
+    check_prometheus_rules,
+    get_prometheus_alerts,
+    check_prometheus_tsdb,
+    get_prometheus_runtime_info,
+    get_prometheus_config_status
+)
+
 # Load environment variables
 load_dotenv()
 

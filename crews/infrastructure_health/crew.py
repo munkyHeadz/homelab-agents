@@ -52,6 +52,12 @@ from crews.tools import (
     get_entity_history,
     check_automation_status,
     get_homeassistant_summary,
+    check_prometheus_targets,
+    check_prometheus_rules,
+    get_prometheus_alerts,
+    check_prometheus_tsdb,
+    get_prometheus_runtime_info,
+    get_prometheus_config_status,
 )
 from crews.memory.incident_memory import IncidentMemory
 
@@ -106,6 +112,10 @@ monitor_agent = Agent(
         get_proxmox_system_summary,
         check_homeassistant_status,
         get_homeassistant_summary,
+        check_prometheus_targets,
+        get_prometheus_alerts,
+        check_prometheus_tsdb,
+        get_prometheus_runtime_info,
     ],
     llm=llm,
     verbose=True,
@@ -150,6 +160,8 @@ analyst_agent = Agent(
         get_entity_state,
         get_entity_history,
         check_automation_status,
+        check_prometheus_rules,
+        get_prometheus_config_status,
     ],
     llm=llm,
     verbose=True,
