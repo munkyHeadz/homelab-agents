@@ -5,7 +5,7 @@
 [![Status](https://img.shields.io/badge/status-production-success)](http://100.67.169.111:5000/health)
 [![Success Rate](https://img.shields.io/badge/success%20rate-100%25-success)]()
 [![Monthly Cost](https://img.shields.io/badge/monthly%20cost-$0.38-blue)]()
-[![Tools](https://img.shields.io/badge/autonomous%20tools-69-blue)]()
+[![Tools](https://img.shields.io/badge/autonomous%20tools-75-blue)]()
 [![Coverage](https://img.shields.io/badge/service%20coverage-51.6%25-success)]()
 
 ---
@@ -40,7 +40,7 @@ A **fully autonomous AI incident response system** that detects, diagnoses, and 
 | **Incidents Processed** | 8 total |
 | **Success Rate** | 100% |
 | **Average Resolution** | 137 seconds (~2.3 minutes) |
-| **Tools Available** | 69 autonomous tools |
+| **Tools Available** | 75 autonomous tools |
 | **Integrations** | 15 services (48.4% of available) |
 | **Network Devices** | 25+ Tailscale, 6+ UniFi APs/switches |
 | **Databases Monitored** | 3+ PostgreSQL |
@@ -89,7 +89,7 @@ A **fully autonomous AI incident response system** that detects, diagnoses, and 
 
 ## 🛠️ Available Tools
 
-The AI agents have access to **69 autonomous tools** across 5 categories:
+The AI agents have access to **75 autonomous tools** across 5 categories:
 
 ### Container & Virtualization (19 tools)
 - **Docker (10 tools)**:
@@ -173,12 +173,19 @@ The AI agents have access to **69 autonomous tools** across 5 categories:
   - `create_snapshot` - Capture dashboard state
   - `list_datasources` - Verify datasource connectivity
 
-### Database Monitoring (5 tools)
-- `check_postgres_health` - PostgreSQL server health & connections
-- `query_database_performance` - Long-running queries & locks
-- `check_database_sizes` - Database & table size analysis
-- `monitor_database_connections` - Connection pool tracking
-- `check_specific_database` - Detailed database information
+### Database Monitoring (11 tools)
+- **PostgreSQL (11 tools)**:
+  - `check_postgres_health` - PostgreSQL server health & connections
+  - `query_database_performance` - Long-running queries & locks
+  - `check_database_sizes` - Database & table size analysis
+  - `monitor_database_connections` - Connection pool tracking
+  - `check_specific_database` - Detailed database information
+  - `check_replication_status` - Replication lag and replica health monitoring
+  - `check_table_bloat` - Identify bloated tables needing VACUUM FULL
+  - `analyze_slow_queries` - Query performance analysis (requires pg_stat_statements)
+  - `check_index_health` - Detect unused indexes and optimization opportunities
+  - `monitor_vacuum_status` - Track autovacuum operations
+  - `check_database_locks` - Analyze blocking queries and deadlocks
 
 ---
 
@@ -672,10 +679,10 @@ MIT License - See LICENSE file for details
 ---
 
 **Status:** ✅ Production Operational
-**Version:** 1.5.0
+**Version:** 1.6.0
 **Last Updated:** 2025-10-27
 **Success Rate:** 100% (8/8 incidents)
 **Average Resolution:** 137 seconds
 **Service Coverage:** 51.6% (16/31 services)
-**Tools Available:** 69 autonomous tools
+**Tools Available:** 75 autonomous tools
 **Monthly Cost:** $0.38
