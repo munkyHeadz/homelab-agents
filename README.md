@@ -5,8 +5,8 @@
 [![Status](https://img.shields.io/badge/status-production-success)](http://100.67.169.111:5000/health)
 [![Success Rate](https://img.shields.io/badge/success%20rate-100%25-success)]()
 [![Monthly Cost](https://img.shields.io/badge/monthly%20cost-$0.38-blue)]()
-[![Tools](https://img.shields.io/badge/autonomous%20tools-39-blue)]()
-[![Coverage](https://img.shields.io/badge/service%20coverage-48.4%25-success)]()
+[![Tools](https://img.shields.io/badge/autonomous%20tools-57-blue)]()
+[![Coverage](https://img.shields.io/badge/service%20coverage-51.6%25-success)]()
 
 ---
 
@@ -40,7 +40,7 @@ A **fully autonomous AI incident response system** that detects, diagnoses, and 
 | **Incidents Processed** | 8 total |
 | **Success Rate** | 100% |
 | **Average Resolution** | 137 seconds (~2.3 minutes) |
-| **Tools Available** | 39 autonomous tools |
+| **Tools Available** | 57 autonomous tools |
 | **Integrations** | 15 services (48.4% of available) |
 | **Network Devices** | 25+ Tailscale, 6+ UniFi APs/switches |
 | **Databases Monitored** | 3+ PostgreSQL |
@@ -89,22 +89,32 @@ A **fully autonomous AI incident response system** that detects, diagnoses, and 
 
 ## 🛠️ Available Tools
 
-The AI agents have access to **39 autonomous tools** across 4 categories:
+The AI agents have access to **57 autonomous tools** across 5 categories:
 
-### Container & Virtualization (13 tools)
-- `query_prometheus` - Query Prometheus for metrics using PromQL
-- `check_container_status` - Check Docker container status
-- `restart_container` - Restart Docker containers
-- `check_container_logs` - Retrieve container logs
-- `check_lxc_status` - Query Proxmox LXC container status
-- `restart_lxc` - Restart Proxmox LXC containers
-- `send_telegram` - Send Telegram notifications
-- `check_proxmox_node_health` - Monitor Proxmox node resources (CPU, memory, storage)
-- `list_proxmox_vms` - List all VMs with status
-- `check_proxmox_vm_status` - Detailed VM diagnostics
-- `get_proxmox_storage_status` - Storage pool monitoring
-- `get_proxmox_cluster_status` - Cluster health and quorum
-- `get_proxmox_system_summary` - Complete platform overview
+### Container & Virtualization (19 tools)
+- **Docker (10 tools)**:
+  - `check_container_status` - Check Docker container status
+  - `restart_container` - Restart Docker containers
+  - `check_container_logs` - Retrieve container logs
+  - `list_docker_images` - Image inventory and dangling image detection
+  - `prune_docker_images` - Automated cleanup of unused images
+  - `inspect_docker_network` - Network troubleshooting and diagnostics
+  - `check_docker_volumes` - Volume usage and orphaned volume detection
+  - `get_container_resource_usage` - Real-time CPU/memory/network/IO stats
+  - `check_docker_system_health` - Overall Docker daemon health
+- **Proxmox (8 tools)**:
+  - `check_lxc_status` - Query Proxmox LXC container status
+  - `restart_lxc` - Restart Proxmox LXC containers
+  - `check_proxmox_node_health` - Monitor Proxmox node resources (CPU, memory, storage)
+  - `list_proxmox_vms` - List all VMs with status
+  - `check_proxmox_vm_status` - Detailed VM diagnostics
+  - `get_proxmox_storage_status` - Storage pool monitoring
+  - `get_proxmox_cluster_status` - Cluster health and quorum
+  - `get_proxmox_system_summary` - Complete platform overview
+- **Monitoring (1 tool)**:
+  - `query_prometheus` - Query Prometheus for metrics using PromQL
+- **Communications (1 tool)**:
+  - `send_telegram` - Send Telegram notifications
 
 ### Network Monitoring (16 tools)
 - `list_tailscale_devices` - List all devices in Tailscale network
@@ -130,6 +140,23 @@ The AI agents have access to **39 autonomous tools** across 4 categories:
 - `check_blocklist_status` - Blocklist status and effectiveness
 - `monitor_dns_clients` - DNS client activity tracking
 - `get_adguard_protection_summary` - Protection summary dashboard
+
+### Smart Home (6 tools)
+- `check_homeassistant_status` - Home Assistant service health
+- `list_homeassistant_entities` - Entity discovery and inventory
+- `get_entity_state` - Detailed entity information
+- `get_entity_history` - Historical state tracking
+- `check_automation_status` - Automation monitoring
+- `get_homeassistant_summary` - Dashboard overview
+
+### Monitoring Stack (7 tools)
+- `check_prometheus_targets` - Scrape target monitoring
+- `check_prometheus_rules` - Rule evaluation monitoring
+- `get_prometheus_alerts` - Active alert tracking
+- `check_prometheus_tsdb` - Time Series Database health
+- `get_prometheus_runtime_info` - Runtime information
+- `get_prometheus_config_status` - Configuration management
+- `query_prometheus` - PromQL metrics queries
 
 ### Database Monitoring (5 tools)
 - `check_postgres_health` - PostgreSQL server health & connections
@@ -496,11 +523,14 @@ curl -X POST http://100.67.169.111:9093/api/v1/alerts \
 | **15** | Cloudflare DNS/security (6 tools) | ⚠️ Needs credentials |
 | **16** | AdGuard Home DNS filtering (5 tools) | ✅ Complete |
 | **17** | Expanded Proxmox monitoring (6 tools) | ✅ Complete |
+| **18** | Home Assistant smart home (6 tools) | ⚠️ Needs activation |
+| **19** | Prometheus monitoring expansion (6 tools) | ✅ Complete |
+| **20** | Docker management expansion (6 tools) | ✅ Complete |
 
-**Total Development Time:** ~16 hours
-**Lines of Code:** ~13,000+
-**Documentation:** ~11,000+ lines
-**Service Coverage:** 48.4% (15/31 services)
+**Total Development Time:** ~20 hours
+**Lines of Code:** ~14,500+
+**Documentation:** ~13,500+ lines
+**Service Coverage:** 51.6% (16/31 services)
 
 ---
 
@@ -625,10 +655,10 @@ MIT License - See LICENSE file for details
 ---
 
 **Status:** ✅ Production Operational
-**Version:** 1.2.0
-**Last Updated:** 2025-10-26
+**Version:** 1.3.0
+**Last Updated:** 2025-10-27
 **Success Rate:** 100% (8/8 incidents)
 **Average Resolution:** 137 seconds
-**Service Coverage:** 48.4% (15/31 services)
-**Tools Available:** 39 autonomous tools
+**Service Coverage:** 51.6% (16/31 services)
+**Tools Available:** 57 autonomous tools
 **Monthly Cost:** $0.38
