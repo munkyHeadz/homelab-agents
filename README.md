@@ -5,7 +5,7 @@
 [![Status](https://img.shields.io/badge/status-production-success)](http://100.67.169.111:5000/health)
 [![Success Rate](https://img.shields.io/badge/success%20rate-100%25-success)]()
 [![Monthly Cost](https://img.shields.io/badge/monthly%20cost-$0.38-blue)]()
-[![Tools](https://img.shields.io/badge/autonomous%20tools-75-blue)]()
+[![Tools](https://img.shields.io/badge/autonomous%20tools-81-blue)]()
 [![Coverage](https://img.shields.io/badge/service%20coverage-51.6%25-success)]()
 
 ---
@@ -40,7 +40,7 @@ A **fully autonomous AI incident response system** that detects, diagnoses, and 
 | **Incidents Processed** | 8 total |
 | **Success Rate** | 100% |
 | **Average Resolution** | 137 seconds (~2.3 minutes) |
-| **Tools Available** | 75 autonomous tools |
+| **Tools Available** | 81 autonomous tools |
 | **Integrations** | 15 services (48.4% of available) |
 | **Network Devices** | 25+ Tailscale, 6+ UniFi APs/switches |
 | **Databases Monitored** | 3+ PostgreSQL |
@@ -89,9 +89,9 @@ A **fully autonomous AI incident response system** that detects, diagnoses, and 
 
 ## 🛠️ Available Tools
 
-The AI agents have access to **75 autonomous tools** across 5 categories:
+The AI agents have access to **81 autonomous tools** across 5 categories:
 
-### Container & Virtualization (19 tools)
+### Container & Virtualization (25 tools)
 - **Docker (10 tools)**:
   - `check_container_status` - Check Docker container status
   - `restart_container` - Restart Docker containers
@@ -102,9 +102,16 @@ The AI agents have access to **75 autonomous tools** across 5 categories:
   - `check_docker_volumes` - Volume usage and orphaned volume detection
   - `get_container_resource_usage` - Real-time CPU/memory/network/IO stats
   - `check_docker_system_health` - Overall Docker daemon health
-- **Proxmox (8 tools)**:
-  - `check_lxc_status` - Query Proxmox LXC container status
-  - `restart_lxc` - Restart Proxmox LXC containers
+- **LXC Containers (8 tools)**:
+  - `check_lxc_status` - Query LXC container status
+  - `restart_lxc` - Restart LXC containers
+  - `list_lxc_containers` - List all LXC containers with status and resources
+  - `check_lxc_logs` - Retrieve container logs for troubleshooting
+  - `get_lxc_resource_usage` - Real-time CPU/memory/disk/network stats
+  - `check_lxc_snapshots` - Snapshot management and backup verification
+  - `check_lxc_network` - Network configuration and diagnostics
+  - `get_lxc_config` - Configuration validation and security review
+- **Proxmox VMs (6 tools)**:
   - `check_proxmox_node_health` - Monitor Proxmox node resources (CPU, memory, storage)
   - `list_proxmox_vms` - List all VMs with status
   - `check_proxmox_vm_status` - Detailed VM diagnostics
@@ -679,10 +686,10 @@ MIT License - See LICENSE file for details
 ---
 
 **Status:** ✅ Production Operational
-**Version:** 1.6.0
+**Version:** 1.7.0
 **Last Updated:** 2025-10-27
 **Success Rate:** 100% (8/8 incidents)
 **Average Resolution:** 137 seconds
 **Service Coverage:** 51.6% (16/31 services)
-**Tools Available:** 75 autonomous tools
+**Tools Available:** 81 autonomous tools
 **Monthly Cost:** $0.38
