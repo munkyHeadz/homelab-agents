@@ -22,7 +22,13 @@ from crews.tools.postgres_tools import (
     query_database_performance,
     check_database_sizes,
     monitor_database_connections,
-    check_specific_database
+    check_specific_database,
+    check_replication_status,
+    check_table_bloat,
+    analyze_slow_queries,
+    check_index_health,
+    monitor_vacuum_status,
+    check_database_locks
 )
 
 # Import UniFi tools
