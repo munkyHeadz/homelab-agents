@@ -70,6 +70,12 @@ from crews.tools import (
     delete_alert_silence,
     check_alert_routing,
     get_alertmanager_status,
+    add_annotation,
+    get_grafana_status,
+    list_dashboards,
+    get_dashboard,
+    create_snapshot,
+    list_datasources,
 )
 from crews.memory.incident_memory import IncidentMemory
 
@@ -130,6 +136,8 @@ monitor_agent = Agent(
         check_docker_volumes,
         list_active_alerts,
         get_alertmanager_status,
+        get_grafana_status,
+        list_dashboards,
     ],
     llm=llm,
     verbose=False,  # Reduced verbosity to minimize token usage
@@ -174,6 +182,8 @@ analyst_agent = Agent(
         inspect_docker_network,
         list_alert_silences,
         check_alert_routing,
+        get_dashboard,
+        list_datasources,
     ],
     llm=llm,
     verbose=False,  # Reduced verbosity to minimize token usage
@@ -185,7 +195,7 @@ healer_agent = Agent(
     role="Self-Healing Engineer",
     goal="Remediate infrastructure issues",
     backstory="Automation engineer. Execute fixes based on diagnosis. Verify success.",
-    tools=[restart_container, restart_lxc, check_container_status, check_lxc_status, prune_docker_images, create_alert_silence, delete_alert_silence],
+    tools=[restart_container, restart_lxc, check_container_status, check_lxc_status, prune_docker_images, create_alert_silence, delete_alert_silence, add_annotation, create_snapshot],
     llm=llm,
     verbose=False,  # Reduced verbosity to minimize token usage
     allow_delegation=False,

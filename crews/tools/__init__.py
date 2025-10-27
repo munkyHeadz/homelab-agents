@@ -64,6 +64,12 @@ from .homelab_tools import (
     delete_alert_silence,
     check_alert_routing,
     get_alertmanager_status,
+    add_annotation,
+    get_grafana_status,
+    list_dashboards,
+    get_dashboard,
+    create_snapshot,
+    list_datasources,
 )
 
 __all__ = [
@@ -130,4 +136,10 @@ __all__ = [
     "delete_alert_silence",
     "check_alert_routing",
     "get_alertmanager_status",
+    "add_annotation",
+    "get_grafana_status",
+    "list_dashboards",
+    "get_dashboard",
+    "create_snapshot",
+    "list_datasources",
 ]

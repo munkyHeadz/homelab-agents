@@ -104,6 +104,16 @@ from crews.tools.alertmanager_tools import (
     get_alertmanager_status
 )
 
+# Import Grafana tools
+from crews.tools.grafana_tools import (
+    add_annotation,
+    get_grafana_status,
+    list_dashboards,
+    get_dashboard,
+    create_snapshot,
+    list_datasources
+)
+
 # Load environment variables
 load_dotenv()
 
