@@ -64,6 +64,12 @@ from crews.tools import (
     check_docker_volumes,
     get_container_resource_usage,
     check_docker_system_health,
+    list_active_alerts,
+    list_alert_silences,
+    create_alert_silence,
+    delete_alert_silence,
+    check_alert_routing,
+    get_alertmanager_status,
 )
 from crews.memory.incident_memory import IncidentMemory
 
@@ -122,6 +128,8 @@ monitor_agent = Agent(
         check_docker_system_health,
         list_docker_images,
         check_docker_volumes,
+        list_active_alerts,
+        get_alertmanager_status,
     ],
     llm=llm,
     verbose=False,  # Reduced verbosity to minimize token usage
@@ -164,6 +172,8 @@ analyst_agent = Agent(
         get_prometheus_config_status,
         get_container_resource_usage,
         inspect_docker_network,
+        list_alert_silences,
+        check_alert_routing,
     ],
     llm=llm,
     verbose=False,  # Reduced verbosity to minimize token usage
@@ -175,7 +185,7 @@ healer_agent = Agent(
     role="Self-Healing Engineer",
     goal="Remediate infrastructure issues",
     backstory="Automation engineer. Execute fixes based on diagnosis. Verify success.",
-    tools=[restart_container, restart_lxc, check_container_status, check_lxc_status, prune_docker_images],
+    tools=[restart_container, restart_lxc, check_container_status, check_lxc_status, prune_docker_images, create_alert_silence, delete_alert_silence],
     llm=llm,
     verbose=False,  # Reduced verbosity to minimize token usage
     allow_delegation=False,

@@ -94,6 +94,16 @@ from crews.tools.docker_tools import (
     check_docker_system_health
 )
 
+# Import Alertmanager tools
+from crews.tools.alertmanager_tools import (
+    list_active_alerts,
+    list_alert_silences,
+    create_alert_silence,
+    delete_alert_silence,
+    check_alert_routing,
+    get_alertmanager_status
+)
+
 # Load environment variables
 load_dotenv()
 
