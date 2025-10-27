@@ -600,3 +600,609 @@ def get_proxmox_system_summary(node: Optional[str] = None) -> str:
 
     except Exception as e:
         return f"❌ Error getting system summary: {str(e)}"
+
+@tool("List LXC Containers")
+def list_lxc_containers(node: Optional[str] = None, status_filter: Optional[str] = None) -> str:
+    """
+    List all LXC containers on Proxmox node.
+
+    Args:
+        node: Optional specific node name. If None, uses configured node.
+        status_filter: Optional filter by status (running, stopped, paused)
+
+    Returns:
+        Formatted string with LXC container information including:
+        - Container ID and name
+        - Status (running/stopped/paused)
+        - CPU cores and usage
+        - Memory allocation and usage
+        - Uptime (for running containers)
+        - Root filesystem usage
+
+    Use cases:
+    - Inventory all LXC containers
+    - Check container status quickly
+    - Monitor container resource usage
+    - Identify stopped or problematic containers
+    - Compare with Docker containers
+    """
+    try:
+        proxmox = _get_proxmox_client()
+        target_node = node or PROXMOX_NODE
+
+        lxcs = proxmox.nodes(target_node).lxc.get()
+
+        if status_filter:
+            lxcs = [lxc for lxc in lxcs if lxc.get('status', '').lower() == status_filter.lower()]
+
+        if not lxcs:
+            return f"ℹ️ No LXC containers found on node {target_node}" + (f" with status '{status_filter}'" if status_filter else "")
+
+        output = [f"📦 LXC Containers on **{target_node}** ({len(lxcs)} total)\n"]
+
+        # Group by status
+        running = [lxc for lxc in lxcs if lxc.get('status') == 'running']
+        stopped = [lxc for lxc in lxcs if lxc.get('status') == 'stopped']
+        other = [lxc for lxc in lxcs if lxc.get('status') not in ['running', 'stopped']]
+
+        output.append(f"**Running**: {len(running)} | **Stopped**: {len(stopped)}" + (f" | **Other**: {len(other)}" if other else ""))
+
+        # Show running containers first
+        if running:
+            output.append("\n**Running Containers**:")
+            for lxc in sorted(running, key=lambda x: x.get('vmid', 0)):
+                vmid = lxc.get('vmid', 'Unknown')
+                name = lxc.get('name', 'Unknown')
+                cpu_usage = lxc.get('cpu', 0) * 100
+                mem_usage = lxc.get('mem', 0) / (1024**3) if lxc.get('mem') else 0
+                mem_max = lxc.get('maxmem', 0) / (1024**3) if lxc.get('maxmem') else 0
+                cpus = lxc.get('cpus', 0)
+                uptime = lxc.get('uptime', 0)
+
+                uptime_str = f"{uptime // 86400}d {(uptime % 86400) // 3600}h" if uptime > 0 else "Starting"
+
+                output.append(f"\n  ✅ **LXC {vmid}**: {name}")
+                output.append(f"     CPU: {cpu_usage:.1f}% ({cpus} cores) | RAM: {mem_usage:.1f}/{mem_max:.1f}GB")
+                output.append(f"     Uptime: {uptime_str}")
+
+        # Show stopped containers
+        if stopped:
+            output.append("\n**Stopped Containers**:")
+            for lxc in sorted(stopped, key=lambda x: x.get('vmid', 0)):
+                vmid = lxc.get('vmid', 'Unknown')
+                name = lxc.get('name', 'Unknown')
+                cpus = lxc.get('cpus', 0)
+                mem_max = lxc.get('maxmem', 0) / (1024**3) if lxc.get('maxmem') else 0
+
+                output.append(f"  ⏹️ **LXC {vmid}**: {name} (CPU: {cpus} cores, RAM: {mem_max:.1f}GB)")
+
+        # Show other status containers
+        if other:
+            output.append("\n**Other Status Containers**:")
+            for lxc in sorted(other, key=lambda x: x.get('vmid', 0)):
+                vmid = lxc.get('vmid', 'Unknown')
+                name = lxc.get('name', 'Unknown')
+                status = lxc.get('status', 'unknown')
+
+                output.append(f"  ⚠️ **LXC {vmid}**: {name} - Status: {status}")
+
+        return "\n".join(output)
+
+    except Exception as e:
+        return f"❌ Error listing LXC containers: {str(e)}"
+
+
+@tool("Check LXC Container Logs")
+def check_lxc_logs(vmid: int, node: Optional[str] = None, lines: int = 50) -> str:
+    """
+    Retrieve recent log entries from an LXC container.
+
+    Args:
+        vmid: LXC container ID
+        node: Optional specific node name. If None, uses configured node.
+        lines: Number of log lines to retrieve (default: 50, max: 200)
+
+    Returns:
+        Formatted string with recent container log entries from syslog
+
+    Use cases:
+    - Troubleshoot container startup issues
+    - Investigate application errors
+    - Monitor container activity
+    - Debug service failures
+    - Check for security events
+    """
+    try:
+        proxmox = _get_proxmox_client()
+        target_node = node or PROXMOX_NODE
+
+        # Limit lines to prevent excessive output
+        lines = min(lines, 200)
+
+        # Get container status first
+        lxc_status = proxmox.nodes(target_node).lxc(vmid).status.current.get()
+        status = lxc_status.get('status', 'unknown')
+        name = lxc_status.get('name', f'LXC {vmid}')
+
+        if status != 'running':
+            return f"⚠️ Container {vmid} ({name}) is {status}. Cannot retrieve logs from stopped container.\n\nTip: Use Proxmox syslog or check task logs for startup issues."
+
+        # Execute command to get logs from container
+        try:
+            # Read syslog from container
+            log_result = proxmox.nodes(target_node).lxc(vmid).log.get(limit=lines)
+            
+            if not log_result:
+                return f"ℹ️ No logs available for container {vmid} ({name})"
+
+            output = [f"📜 LXC Container {vmid} ({name}) - Last {lines} log entries\n"]
+            
+            # Parse log entries
+            for entry in log_result[-lines:]:
+                line_num = entry.get('n', '')
+                text = entry.get('t', '')
+                output.append(f"{line_num}: {text}")
+
+            return "\n".join(output)
+
+        except Exception as log_err:
+            # Fallback to rrddata or status info if logs unavailable
+            return f"⚠️ Unable to retrieve container logs: {str(log_err)}\n\nContainer {vmid} ({name}) is {status}. Logs may not be available through API."
+
+    except Exception as e:
+        return f"❌ Error checking LXC logs for container {vmid}: {str(e)}"
+
+
+@tool("Get LXC Resource Usage")
+def get_lxc_resource_usage(vmid: int, node: Optional[str] = None) -> str:
+    """
+    Get real-time resource usage statistics for an LXC container.
+
+    Args:
+        vmid: LXC container ID
+        node: Optional specific node name. If None, uses configured node.
+
+    Returns:
+        Formatted string with detailed resource usage including:
+        - CPU usage percentage and allocation
+        - Memory usage (used/total/percentage)
+        - Swap usage
+        - Disk I/O (read/write)
+        - Network I/O (in/out)
+        - Root filesystem usage
+        - Uptime
+
+    Use cases:
+    - Monitor container performance
+    - Detect resource exhaustion
+    - Identify resource-hungry containers
+    - Capacity planning
+    - Performance troubleshooting
+    """
+    try:
+        proxmox = _get_proxmox_client()
+        target_node = node or PROXMOX_NODE
+
+        lxc_status = proxmox.nodes(target_node).lxc(vmid).status.current.get()
+        lxc_config = proxmox.nodes(target_node).lxc(vmid).config.get()
+
+        name = lxc_config.get('hostname', f'LXC {vmid}')
+        status = lxc_status.get('status', 'unknown')
+
+        output = [f"📊 LXC Container {vmid} ({name}) - Resource Usage\n"]
+
+        if status != 'running':
+            output.append(f"**Status**: ⏹️ {status.title()}")
+            output.append("\nℹ️ Container is not running. No resource usage data available.")
+            
+            # Show configured resources
+            cpus = lxc_config.get('cores', 0)
+            mem_max = lxc_config.get('memory', 0) / 1024  # GB
+            swap_max = lxc_config.get('swap', 0) / 1024  # GB
+            
+            output.append(f"\n**Configured Resources**:")
+            output.append(f"  CPU Cores: {cpus}")
+            output.append(f"  Memory: {mem_max:.1f}GB")
+            output.append(f"  Swap: {swap_max:.1f}GB")
+            
+            return "\n".join(output)
+
+        output.append(f"**Status**: ✅ Running")
+
+        # Uptime
+        uptime = lxc_status.get('uptime', 0)
+        days = uptime // 86400
+        hours = (uptime % 86400) // 3600
+        minutes = (uptime % 3600) // 60
+        output.append(f"**Uptime**: {days}d {hours}h {minutes}m")
+
+        # CPU Usage
+        cpu_usage = lxc_status.get('cpu', 0) * 100
+        cpus = lxc_status.get('cpus', lxc_config.get('cores', 0))
+
+        if cpu_usage > 80:
+            cpu_emoji = "🔴"
+        elif cpu_usage > 60:
+            cpu_emoji = "⚠️"
+        else:
+            cpu_emoji = "✅"
+
+        output.append(f"\n**CPU**: {cpu_emoji} {cpu_usage:.1f}% ({cpus} cores)")
+
+        # Memory Usage
+        mem_used = lxc_status.get('mem', 0) / (1024**3)  # GB
+        mem_max = lxc_status.get('maxmem', 0) / (1024**3)  # GB
+        mem_percentage = (lxc_status.get('mem', 0) / lxc_status.get('maxmem', 1)) * 100 if lxc_status.get('maxmem', 1) > 0 else 0
+
+        if mem_percentage > 90:
+            mem_emoji = "🔴"
+        elif mem_percentage > 75:
+            mem_emoji = "⚠️"
+        else:
+            mem_emoji = "✅"
+
+        output.append(f"**Memory**: {mem_emoji} {mem_used:.2f}GB / {mem_max:.2f}GB ({mem_percentage:.1f}%)")
+
+        # Swap Usage (if available)
+        swap_used = lxc_status.get('swap', 0) / (1024**3)  # GB
+        max_swap = lxc_status.get('maxswap', 0) / (1024**3)  # GB
+        
+        if max_swap > 0:
+            swap_percentage = (lxc_status.get('swap', 0) / lxc_status.get('maxswap', 1)) * 100 if lxc_status.get('maxswap', 1) > 0 else 0
+            swap_emoji = "⚠️" if swap_percentage > 50 else "✅"
+            output.append(f"**Swap**: {swap_emoji} {swap_used:.2f}GB / {max_swap:.2f}GB ({swap_percentage:.1f}%)")
+
+        # Disk I/O
+        disk_read = lxc_status.get('diskread', 0) / (1024**3)  # GB
+        disk_write = lxc_status.get('diskwrite', 0) / (1024**3)  # GB
+        output.append(f"\n**Disk I/O**: Read: {disk_read:.2f}GB | Write: {disk_write:.2f}GB")
+
+        # Root filesystem usage
+        disk_used = lxc_status.get('disk', 0) / (1024**3)  # GB
+        disk_max = lxc_status.get('maxdisk', 0) / (1024**3)  # GB
+        
+        if disk_max > 0:
+            disk_percentage = (lxc_status.get('disk', 0) / lxc_status.get('maxdisk', 1)) * 100 if lxc_status.get('maxdisk', 1) > 0 else 0
+            
+            if disk_percentage > 90:
+                disk_emoji = "🔴"
+            elif disk_percentage > 80:
+                disk_emoji = "⚠️"
+            else:
+                disk_emoji = "✅"
+            
+            output.append(f"**Root FS**: {disk_emoji} {disk_used:.2f}GB / {disk_max:.2f}GB ({disk_percentage:.1f}%)")
+
+        # Network I/O
+        net_in = lxc_status.get('netin', 0) / (1024**3)  # GB
+        net_out = lxc_status.get('netout', 0) / (1024**3)  # GB
+        output.append(f"**Network I/O**: In: {net_in:.2f}GB | Out: {net_out:.2f}GB")
+
+        # Resource warnings
+        warnings = []
+        if cpu_usage > 80:
+            warnings.append("High CPU usage")
+        if mem_percentage > 85:
+            warnings.append("High memory usage")
+        if max_swap > 0 and swap_percentage > 50:
+            warnings.append("Swap being used (potential memory pressure)")
+        if disk_max > 0 and disk_percentage > 85:
+            warnings.append("High disk usage")
+
+        if warnings:
+            output.append("\n**⚠️ Warnings**:")
+            for warning in warnings:
+                output.append(f"  • {warning}")
+
+        return "\n".join(output)
+
+    except Exception as e:
+        return f"❌ Error getting LXC resource usage for container {vmid}: {str(e)}"
+
+
+@tool("Check LXC Snapshots")
+def check_lxc_snapshots(vmid: int, node: Optional[str] = None) -> str:
+    """
+    List and check snapshots for an LXC container.
+
+    Args:
+        vmid: LXC container ID
+        node: Optional specific node name. If None, uses configured node.
+
+    Returns:
+        Formatted string with snapshot information including:
+        - Snapshot names and descriptions
+        - Creation timestamps
+        - Snapshot sizes
+        - Total number of snapshots
+        - Backup status
+
+    Use cases:
+    - Verify backup schedules
+    - Check snapshot availability before changes
+    - Identify old snapshots for cleanup
+    - Validate disaster recovery readiness
+    - Monitor snapshot storage usage
+    """
+    try:
+        proxmox = _get_proxmox_client()
+        target_node = node or PROXMOX_NODE
+
+        # Get container config to check for snapshots
+        lxc_config = proxmox.nodes(target_node).lxc(vmid).config.get()
+        name = lxc_config.get('hostname', f'LXC {vmid}')
+
+        # Get snapshots
+        try:
+            snapshots = proxmox.nodes(target_node).lxc(vmid).snapshot.get()
+            
+            # Filter out 'current' pseudo-snapshot
+            real_snapshots = [s for s in snapshots if s.get('name') != 'current']
+            
+            if not real_snapshots:
+                return f"ℹ️ No snapshots found for container {vmid} ({name})\n\n💡 Tip: Create snapshots before making configuration changes or updates."
+
+            output = [f"📸 LXC Container {vmid} ({name}) - Snapshots ({len(real_snapshots)} total)\n"]
+
+            # Sort by creation time (most recent first)
+            sorted_snapshots = sorted(real_snapshots, key=lambda x: x.get('snaptime', 0), reverse=True)
+
+            for snap in sorted_snapshots:
+                snap_name = snap.get('name', 'Unknown')
+                snap_desc = snap.get('description', 'No description')
+                snap_time = snap.get('snaptime', 0)
+                
+                # Convert timestamp to readable format
+                from datetime import datetime
+                if snap_time:
+                    snap_date = datetime.fromtimestamp(snap_time).strftime('%Y-%m-%d %H:%M:%S')
+                else:
+                    snap_date = 'Unknown'
+
+                output.append(f"📸 **{snap_name}**")
+                output.append(f"   Created: {snap_date}")
+                if snap_desc and snap_desc != 'No description':
+                    output.append(f"   Description: {snap_desc}")
+                output.append("")
+
+            # Show backup recommendation
+            if len(real_snapshots) == 0:
+                output.append("⚠️ **No snapshots found** - Consider creating regular snapshots")
+            elif len(real_snapshots) > 10:
+                output.append(f"💡 **{len(real_snapshots)} snapshots** - Consider cleaning up old snapshots")
+
+            return "\n".join(output)
+
+        except Exception as snap_err:
+            return f"ℹ️ No snapshots available for container {vmid} ({name}): {str(snap_err)}"
+
+    except Exception as e:
+        return f"❌ Error checking LXC snapshots for container {vmid}: {str(e)}"
+
+
+@tool("Check LXC Network Configuration")
+def check_lxc_network(vmid: int, node: Optional[str] = None) -> str:
+    """
+    Check network configuration and connectivity for an LXC container.
+
+    Args:
+        vmid: LXC container ID
+        node: Optional specific node name. If None, uses configured node.
+
+    Returns:
+        Formatted string with network information including:
+        - Network interfaces and configuration
+        - IP addresses (IPv4 and IPv6)
+        - MAC addresses
+        - Bridge connections
+        - Network statistics (if running)
+        - Firewall settings
+
+    Use cases:
+    - Troubleshoot network connectivity
+    - Verify IP address assignments
+    - Check bridge configuration
+    - Diagnose network isolation issues
+    - Validate firewall rules
+    """
+    try:
+        proxmox = _get_proxmox_client()
+        target_node = node or PROXMOX_NODE
+
+        lxc_config = proxmox.nodes(target_node).lxc(vmid).config.get()
+        lxc_status = proxmox.nodes(target_node).lxc(vmid).status.current.get()
+
+        name = lxc_config.get('hostname', f'LXC {vmid}')
+        status = lxc_status.get('status', 'unknown')
+
+        output = [f"🌐 LXC Container {vmid} ({name}) - Network Configuration\n"]
+        output.append(f"**Status**: {'✅ Running' if status == 'running' else f'⏹️ {status.title()}'}")
+
+        # Parse network interfaces from config
+        network_found = False
+        
+        for key, value in lxc_config.items():
+            if key.startswith('net'):
+                network_found = True
+                # Parse network configuration (format: name=eth0,bridge=vmbr0,ip=dhcp,...)
+                output.append(f"\n**Interface {key}**:")
+                
+                # Split configuration into key-value pairs
+                config_parts = value.split(',')
+                for part in config_parts:
+                    if '=' in part:
+                        k, v = part.split('=', 1)
+                        
+                        # Format common fields
+                        if k == 'name':
+                            output.append(f"  Name: {v}")
+                        elif k == 'bridge':
+                            output.append(f"  Bridge: {v}")
+                        elif k == 'hwaddr':
+                            output.append(f"  MAC: {v}")
+                        elif k == 'ip':
+                            output.append(f"  IPv4: {v}")
+                        elif k == 'ip6':
+                            output.append(f"  IPv6: {v}")
+                        elif k == 'gw':
+                            output.append(f"  Gateway: {v}")
+                        elif k == 'gw6':
+                            output.append(f"  Gateway6: {v}")
+                        elif k == 'rate':
+                            output.append(f"  Rate Limit: {v} MB/s")
+                        elif k == 'tag':
+                            output.append(f"  VLAN Tag: {v}")
+                        elif k == 'firewall':
+                            firewall_status = "✅ Enabled" if v == '1' else "❌ Disabled"
+                            output.append(f"  Firewall: {firewall_status}")
+
+        if not network_found:
+            output.append("\n⚠️ No network interfaces configured")
+            return "\n".join(output)
+
+        # Show network statistics if container is running
+        if status == 'running':
+            net_in = lxc_status.get('netin', 0) / (1024**2)  # MB
+            net_out = lxc_status.get('netout', 0) / (1024**2)  # MB
+            
+            output.append(f"\n**Network Statistics** (since boot):")
+            output.append(f"  Received: {net_in:.2f} MB")
+            output.append(f"  Transmitted: {net_out:.2f} MB")
+
+        # Firewall status
+        firewall_enabled = lxc_config.get('firewall', '0') == '1'
+        output.append(f"\n**Container Firewall**: {'✅ Enabled' if firewall_enabled else '⚠️ Disabled'}")
+
+        return "\n".join(output)
+
+    except Exception as e:
+        return f"❌ Error checking LXC network for container {vmid}: {str(e)}"
+
+
+@tool("Get LXC Container Configuration")
+def get_lxc_config(vmid: int, node: Optional[str] = None) -> str:
+    """
+    Get and validate LXC container configuration.
+
+    Args:
+        vmid: LXC container ID
+        node: Optional specific node name. If None, uses configured node.
+
+    Returns:
+        Formatted string with container configuration including:
+        - Hostname and OS template
+        - Resource allocations (CPU, memory, swap, disk)
+        - Startup configuration (boot order, autostart)
+        - Security features (unprivileged, nesting, keyctl)
+        - Mount points and storage
+        - Configuration warnings and recommendations
+
+    Use cases:
+    - Validate container configuration
+    - Review security settings
+    - Check resource allocations
+    - Verify startup configuration
+    - Audit container settings
+    - Troubleshoot container issues
+    """
+    try:
+        proxmox = _get_proxmox_client()
+        target_node = node or PROXMOX_NODE
+
+        lxc_config = proxmox.nodes(target_node).lxc(vmid).config.get()
+        lxc_status = proxmox.nodes(target_node).lxc(vmid).status.current.get()
+
+        hostname = lxc_config.get('hostname', f'LXC-{vmid}')
+        status = lxc_status.get('status', 'unknown')
+
+        output = [f"⚙️ LXC Container {vmid} ({hostname}) - Configuration\n"]
+        output.append(f"**Status**: {'✅ Running' if status == 'running' else f'⏹️ {status.title()}'}")
+
+        # OS Template
+        ostemplate = lxc_config.get('ostemplate', 'Unknown')
+        if ostemplate != 'Unknown':
+            output.append(f"**OS Template**: {ostemplate}")
+
+        # Container Type
+        unprivileged = lxc_config.get('unprivileged', '0') == '1'
+        container_type = "Unprivileged (Secure)" if unprivileged else "Privileged"
+        security_emoji = "✅" if unprivileged else "⚠️"
+        output.append(f"**Type**: {security_emoji} {container_type}")
+
+        # Resource Allocation
+        output.append(f"\n**Resource Allocation**:")
+        cores = lxc_config.get('cores', 'Unlimited')
+        memory = lxc_config.get('memory', 'N/A')
+        if memory != 'N/A':
+            memory_gb = int(memory) / 1024
+            output.append(f"  CPU Cores: {cores}")
+            output.append(f"  Memory: {memory_gb:.1f}GB")
+        
+        swap = lxc_config.get('swap', '0')
+        if int(swap) > 0:
+            swap_gb = int(swap) / 1024
+            output.append(f"  Swap: {swap_gb:.1f}GB")
+        else:
+            output.append(f"  Swap: Disabled")
+
+        # Storage
+        rootfs = lxc_config.get('rootfs', '')
+        if rootfs:
+            # Parse rootfs (format: storage:size)
+            output.append(f"\n**Root Filesystem**: {rootfs}")
+
+        # Mount points
+        mount_count = 0
+        for key in lxc_config.keys():
+            if key.startswith('mp'):
+                mount_count += 1
+        
+        if mount_count > 0:
+            output.append(f"**Mount Points**: {mount_count} configured")
+
+        # Startup Configuration
+        output.append(f"\n**Startup Configuration**:")
+        onboot = lxc_config.get('onboot', '0') == '1'
+        output.append(f"  Autostart: {'✅ Enabled' if onboot else '❌ Disabled'}")
+        
+        startup_order = lxc_config.get('startup', 'Default')
+        if startup_order != 'Default':
+            output.append(f"  Startup Order: {startup_order}")
+
+        # Security Features
+        output.append(f"\n**Security Features**:")
+        
+        nesting = lxc_config.get('features', '').find('nesting=1') != -1
+        output.append(f"  Nesting: {'✅ Enabled' if nesting else '❌ Disabled'}")
+        
+        keyctl = lxc_config.get('features', '').find('keyctl=1') != -1
+        output.append(f"  Keyctl: {'✅ Enabled' if keyctl else '❌ Disabled'}")
+
+        # Configuration Warnings and Recommendations
+        warnings = []
+        recommendations = []
+
+        if not unprivileged:
+            warnings.append("⚠️ Privileged container - security risk")
+            recommendations.append("Consider migrating to unprivileged container")
+
+        if not onboot:
+            recommendations.append("Enable autostart for critical services")
+
+        if int(swap) == 0:
+            recommendations.append("Consider enabling swap for memory stability")
+
+        if warnings:
+            output.append(f"\n**⚠️ Warnings**:")
+            for warning in warnings:
+                output.append(f"  {warning}")
+
+        if recommendations:
+            output.append(f"\n**💡 Recommendations**:")
+            for rec in recommendations:
+                output.append(f"  • {rec}")
+
+        return "\n".join(output)
+
+    except Exception as e:
+        return f"❌ Error getting LXC configuration for container {vmid}: {str(e)}"

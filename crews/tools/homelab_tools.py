@@ -67,7 +67,13 @@ from crews.tools.proxmox_tools import (
     check_proxmox_vm_status,
     get_proxmox_storage_status,
     get_proxmox_cluster_status,
-    get_proxmox_system_summary
+    get_proxmox_system_summary,
+    list_lxc_containers,
+    check_lxc_logs,
+    get_lxc_resource_usage,
+    check_lxc_snapshots,
+    check_lxc_network,
+    get_lxc_config
 )
 
 # Import Home Assistant tools
