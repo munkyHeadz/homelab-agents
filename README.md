@@ -5,7 +5,7 @@
 [![Status](https://img.shields.io/badge/status-production-success)](http://100.67.169.111:5000/health)
 [![Success Rate](https://img.shields.io/badge/success%20rate-100%25-success)]()
 [![Monthly Cost](https://img.shields.io/badge/monthly%20cost-$0.38-blue)]()
-[![Tools](https://img.shields.io/badge/autonomous%20tools-81-blue)]()
+[![Tools](https://img.shields.io/badge/autonomous%20tools-87-blue)]()
 [![Coverage](https://img.shields.io/badge/service%20coverage-51.6%25-success)]()
 
 ---
@@ -40,7 +40,7 @@ A **fully autonomous AI incident response system** that detects, diagnoses, and 
 | **Incidents Processed** | 8 total |
 | **Success Rate** | 100% |
 | **Average Resolution** | 137 seconds (~2.3 minutes) |
-| **Tools Available** | 81 autonomous tools |
+| **Tools Available** | 87 autonomous tools |
 | **Integrations** | 15 services (48.4% of available) |
 | **Network Devices** | 25+ Tailscale, 6+ UniFi APs/switches |
 | **Databases Monitored** | 3+ PostgreSQL |
@@ -89,10 +89,10 @@ A **fully autonomous AI incident response system** that detects, diagnoses, and 
 
 ## 🛠️ Available Tools
 
-The AI agents have access to **81 autonomous tools** across 5 categories:
+The AI agents have access to **87 autonomous tools** across 5 categories:
 
-### Container & Virtualization (25 tools)
-- **Docker (10 tools)**:
+### Container & Virtualization (28 tools)
+- **Docker (11 tools)**:
   - `check_container_status` - Check Docker container status
   - `restart_container` - Restart Docker containers
   - `check_container_logs` - Retrieve container logs
@@ -102,7 +102,8 @@ The AI agents have access to **81 autonomous tools** across 5 categories:
   - `check_docker_volumes` - Volume usage and orphaned volume detection
   - `get_container_resource_usage` - Real-time CPU/memory/network/IO stats
   - `check_docker_system_health` - Overall Docker daemon health
-- **LXC Containers (8 tools)**:
+  - `update_docker_resources` - Dynamically update container resource limits (Phase 25)
+- **LXC Containers (11 tools)**:
   - `check_lxc_status` - Query LXC container status
   - `restart_lxc` - Restart LXC containers
   - `list_lxc_containers` - List all LXC containers with status and resources
@@ -111,6 +112,9 @@ The AI agents have access to **81 autonomous tools** across 5 categories:
   - `check_lxc_snapshots` - Snapshot management and backup verification
   - `check_lxc_network` - Network configuration and diagnostics
   - `get_lxc_config` - Configuration validation and security review
+  - `update_lxc_resources` - Dynamically adjust CPU/memory/swap allocation (Phase 25)
+  - `create_lxc_snapshot` - Create snapshots for rollback capability (Phase 25)
+  - `restart_postgres_service` - Restart PostgreSQL service inside LXC (Phase 25)
 - **Proxmox VMs (6 tools)**:
   - `check_proxmox_node_health` - Monitor Proxmox node resources (CPU, memory, storage)
   - `list_proxmox_vms` - List all VMs with status
@@ -180,8 +184,8 @@ The AI agents have access to **81 autonomous tools** across 5 categories:
   - `create_snapshot` - Capture dashboard state
   - `list_datasources` - Verify datasource connectivity
 
-### Database Monitoring (11 tools)
-- **PostgreSQL (11 tools)**:
+### Database Monitoring (13 tools)
+- **PostgreSQL (13 tools)**:
   - `check_postgres_health` - PostgreSQL server health & connections
   - `query_database_performance` - Long-running queries & locks
   - `check_database_sizes` - Database & table size analysis
@@ -193,6 +197,8 @@ The AI agents have access to **81 autonomous tools** across 5 categories:
   - `check_index_health` - Detect unused indexes and optimization opportunities
   - `monitor_vacuum_status` - Track autovacuum operations
   - `check_database_locks` - Analyze blocking queries and deadlocks
+  - `vacuum_postgres_table` - Reclaim space from dead tuples (Phase 25)
+  - `clear_postgres_connections` - Terminate active database connections (Phase 25)
 
 ---
 
@@ -557,6 +563,9 @@ curl -X POST http://100.67.169.111:9093/api/v1/alerts \
 | **20** | Docker management expansion (6 tools) | ✅ Complete |
 | **21** | Alertmanager alert management (6 tools) | ✅ Complete |
 | **22** | Grafana API integration (6 tools) | ✅ Complete |
+| **23** | PostgreSQL monitoring expansion (6 tools) | ✅ Complete |
+| **24** | LXC container management expansion (6 tools) | ✅ Complete |
+| **25** | Healer Expansion Part 1 - Remediation (6 tools) | ✅ Complete |
 
 **Total Development Time:** ~24 hours
 **Lines of Code:** ~16,500+
@@ -686,10 +695,10 @@ MIT License - See LICENSE file for details
 ---
 
 **Status:** ✅ Production Operational
-**Version:** 1.7.0
+**Version:** 1.8.0
 **Last Updated:** 2025-10-27
 **Success Rate:** 100% (8/8 incidents)
 **Average Resolution:** 137 seconds
 **Service Coverage:** 51.6% (16/31 services)
-**Tools Available:** 81 autonomous tools
+**Tools Available:** 87 autonomous tools (+6 remediation tools)
 **Monthly Cost:** $0.38
