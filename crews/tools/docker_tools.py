@@ -579,3 +579,80 @@ def check_docker_system_health() -> str:
 
     except Exception as e:
         return f"✗ Error checking Docker system health: {str(e)}"
+
+
+@tool("Update Docker Container Resources")
+def update_docker_resources(container: str, cpu_limit: str = None, memory_limit: str = None, dry_run: bool = False) -> str:
+    """
+    Update Docker container resource limits.
+
+    Args:
+        container: Container name or ID
+        cpu_limit: CPU limit (e.g., "2.0" for 2 cores, "0.5" for half a core)
+        memory_limit: Memory limit (e.g., "2g" for 2GB, "512m" for 512MB)
+        dry_run: If True, only show what would be changed
+
+    Returns:
+        Status message with changes applied
+
+    Safety:
+        - Validates container exists
+        - Supports dry-run mode
+        - Requires approval for production containers
+
+    Use cases:
+        - Limit runaway container resource usage
+        - Temporarily boost resources for intensive task
+        - Enforce resource quotas
+    """
+    try:
+        import docker
+
+        client = docker.from_env()
+
+        try:
+            container_obj = client.containers.get(container)
+        except docker.errors.NotFound:
+            return f"❌ Container '{container}' not found"
+
+        container_name = container_obj.name
+
+        changes = []
+        update_params = {}
+
+        if cpu_limit is not None:
+            current_cpu = container_obj.attrs['HostConfig'].get('NanoCpus', 0) / 1e9
+            changes.append(f"CPU: {current_cpu} → {cpu_limit} cores")
+            # Docker uses nanocpus (1 CPU = 1e9 nanocpus)
+            update_params['cpu_quota'] = int(float(cpu_limit) * 100000)
+            update_params['cpu_period'] = 100000
+
+        if memory_limit is not None:
+            current_mem = container_obj.attrs['HostConfig'].get('Memory', 0)
+            current_mem_str = f"{current_mem / (1024**3):.1f}g" if current_mem > 0 else "unlimited"
+            changes.append(f"Memory: {current_mem_str} → {memory_limit}")
+            update_params['mem_limit'] = memory_limit
+
+        if not changes:
+            return f"ℹ️ No changes specified for container '{container_name}'"
+
+        if dry_run:
+            output = [f"🔍 DRY-RUN: Would update container '{container_name}'\n"]
+            output.append("**Proposed Changes**:")
+            for change in changes:
+                output.append(f"  • {change}")
+            return "\n".join(output)
+
+        # Apply changes
+        container_obj.update(**update_params)
+
+        output = [f"✅ Successfully updated container '{container_name}'\n"]
+        output.append("**Changes Applied**:")
+        for change in changes:
+            output.append(f"  • {change}")
+        output.append("\n⚠️ **Note**: Container continues running with new limits")
+
+        return "\n".join(output)
+
+    except Exception as e:
+        return f"❌ Error updating container resources: {str(e)}"

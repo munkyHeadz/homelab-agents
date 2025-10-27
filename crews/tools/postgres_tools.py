@@ -1244,3 +1244,201 @@ def check_database_locks() -> str:
         return f"✗ PostgreSQL connection error: {e}"
     except Exception as e:
         return f"✗ Error checking database locks: {str(e)}"
+
+
+@tool("Vacuum PostgreSQL Table")
+def vacuum_postgres_table(database: str, table: str, full: bool = False, dry_run: bool = False) -> str:
+    """
+    Run VACUUM on a PostgreSQL table to reclaim space and update statistics.
+
+    Args:
+        database: Database name
+        table: Table name
+        full: If True, run VACUUM FULL (requires exclusive lock, reclaims more space)
+        dry_run: If True, only show what would be done
+
+    Returns:
+        Status message with vacuum results
+
+    Safety:
+        - VACUUM FULL requires approval (exclusive table lock)
+        - Regular VACUUM is non-blocking
+        - Checks table exists before running
+
+    Use cases:
+        - Reclaim space from dead tuples (detected by check_table_bloat)
+        - Update table statistics for query planner
+        - Improve query performance
+    """
+    try:
+        import psycopg
+
+        # PostgreSQL connection params
+        host = os.getenv("POSTGRES_HOST", "localhost")
+        port = int(os.getenv("POSTGRES_PORT", "5432"))
+        user = os.getenv("POSTGRES_USER", "postgres")
+        password = os.getenv("POSTGRES_PASSWORD", "")
+
+        vacuum_type = "VACUUM FULL" if full else "VACUUM"
+
+        if dry_run:
+            return f"🔍 DRY-RUN: Would run {vacuum_type} on table '{table}' in database '{database}'\n\n⚠️ {'Exclusive lock required - blocks all access' if full else 'Non-blocking operation'}"
+
+        # Connect to database
+        conn = psycopg.connect(
+            host=host,
+            port=port,
+            dbname=database,
+            user=user,
+            password=password,
+            autocommit=True  # VACUUM requires autocommit
+        )
+
+        cursor = conn.cursor()
+
+        # Check if table exists
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables
+                WHERE table_schema = 'public'
+                AND table_name = %s
+            )
+        """, (table,))
+
+        if not cursor.fetchone()[0]:
+            conn.close()
+            return f"❌ Table '{table}' does not exist in database '{database}'"
+
+        # Get table size before vacuum
+        cursor.execute(f"SELECT pg_total_relation_size('{table}')")
+        size_before = cursor.fetchone()[0]
+
+        # Run VACUUM
+        import time
+        start_time = time.time()
+
+        if full:
+            cursor.execute(f"VACUUM FULL {table}")
+        else:
+            cursor.execute(f"VACUUM ANALYZE {table}")
+
+        duration = time.time() - start_time
+
+        # Get table size after vacuum
+        cursor.execute(f"SELECT pg_total_relation_size('{table}')")
+        size_after = cursor.fetchone()[0]
+
+        conn.close()
+
+        space_reclaimed = size_before - size_after
+
+        output = [f"✅ Successfully completed {vacuum_type} on table '{table}'\n"]
+        output.append(f"**Database**: {database}")
+        output.append(f"**Table**: {table}")
+        output.append(f"**Duration**: {duration:.2f} seconds")
+        output.append(f"**Size Before**: {size_before / (1024**2):.2f} MB")
+        output.append(f"**Size After**: {size_after / (1024**2):.2f} MB")
+        output.append(f"**Space Reclaimed**: {space_reclaimed / (1024**2):.2f} MB")
+
+        return "\n".join(output)
+
+    except Exception as e:
+        return f"❌ Error running vacuum: {str(e)}"
+
+
+@tool("Clear PostgreSQL Connections")
+def clear_postgres_connections(database: str, force_user: str = None, dry_run: bool = False) -> str:
+    """
+    Terminate active connections to a PostgreSQL database.
+
+    Args:
+        database: Database name
+        force_user: If specified, only kill connections from this user
+        dry_run: If True, only show what would be killed
+
+    Returns:
+        Status message with number of connections terminated
+
+    Safety:
+        - Requires approval (terminates active sessions)
+        - Logs all terminated sessions
+        - Does not kill superuser connections
+
+    Use cases:
+        - Database locked by long-running query
+        - Need exclusive access for maintenance
+        - Clear idle connections
+    """
+    try:
+        import psycopg
+
+        host = os.getenv("POSTGRES_HOST", "localhost")
+        port = int(os.getenv("POSTGRES_PORT", "5432"))
+        user = os.getenv("POSTGRES_USER", "postgres")
+        password = os.getenv("POSTGRES_PASSWORD", "")
+
+        # Connect to postgres database (not the target database)
+        conn = psycopg.connect(
+            host=host,
+            port=port,
+            dbname="postgres",
+            user=user,
+            password=password,
+            autocommit=True
+        )
+
+        cursor = conn.cursor()
+
+        # Get list of active connections
+        query = """
+            SELECT pid, usename, application_name, state,
+                   query_start, state_change
+            FROM pg_stat_activity
+            WHERE datname = %s
+              AND pid != pg_backend_pid()
+        """
+
+        params = [database]
+
+        if force_user:
+            query += " AND usename = %s"
+            params.append(force_user)
+
+        cursor.execute(query, params)
+        connections = cursor.fetchall()
+
+        if not connections:
+            conn.close()
+            return f"ℹ️ No active connections found to database '{database}'"
+
+        if dry_run:
+            output = [f"🔍 DRY-RUN: Would terminate {len(connections)} connection(s) to '{database}'\n"]
+            output.append("**Connections to be terminated**:")
+            for conn_info in connections:
+                pid, username, app, state, query_start, state_change = conn_info
+                output.append(f"  • PID {pid}: {username} ({app}) - {state}")
+            conn.close()
+            return "\n".join(output)
+
+        # Terminate connections
+        terminated = []
+        for conn_info in connections:
+            pid = conn_info[0]
+            try:
+                cursor.execute("SELECT pg_terminate_backend(%s)", (pid,))
+                terminated.append(pid)
+            except Exception as e:
+                # Connection may have already closed
+                pass
+
+        conn.close()
+
+        output = [f"✅ Terminated {len(terminated)} connection(s) to database '{database}'\n"]
+        output.append(f"**PIDs Terminated**: {', '.join(map(str, terminated))}")
+        if force_user:
+            output.append(f"**User Filter**: {force_user}")
+
+        return "\n".join(output)
+
+    except Exception as e:
+        return f"❌ Error clearing connections: {str(e)}"

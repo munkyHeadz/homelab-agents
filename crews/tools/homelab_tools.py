@@ -28,7 +28,9 @@ from crews.tools.postgres_tools import (
     analyze_slow_queries,
     check_index_health,
     monitor_vacuum_status,
-    check_database_locks
+    check_database_locks,
+    vacuum_postgres_table,
+    clear_postgres_connections
 )
 
 # Import UniFi tools
@@ -73,7 +75,10 @@ from crews.tools.proxmox_tools import (
     get_lxc_resource_usage,
     check_lxc_snapshots,
     check_lxc_network,
-    get_lxc_config
+    get_lxc_config,
+    update_lxc_resources,
+    create_lxc_snapshot,
+    restart_postgres_service
 )
 
 # Import Home Assistant tools
@@ -103,7 +108,8 @@ from crews.tools.docker_tools import (
     inspect_docker_network,
     check_docker_volumes,
     get_container_resource_usage,
-    check_docker_system_health
+    check_docker_system_health,
+    update_docker_resources
 )
 
 # Import Alertmanager tools
