@@ -84,6 +84,16 @@ from crews.tools.prometheus_tools import (
     get_prometheus_config_status
 )
 
+# Import expanded Docker tools
+from crews.tools.docker_tools import (
+    list_docker_images,
+    prune_docker_images,
+    inspect_docker_network,
+    check_docker_volumes,
+    get_container_resource_usage,
+    check_docker_system_health
+)
+
 # Load environment variables
 load_dotenv()
 

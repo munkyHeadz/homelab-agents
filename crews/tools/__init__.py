@@ -52,6 +52,12 @@ from .homelab_tools import (
     check_prometheus_tsdb,
     get_prometheus_runtime_info,
     get_prometheus_config_status,
+    list_docker_images,
+    prune_docker_images,
+    inspect_docker_network,
+    check_docker_volumes,
+    get_container_resource_usage,
+    check_docker_system_health,
 )
 
 __all__ = [
@@ -106,4 +112,10 @@ __all__ = [
     "check_prometheus_tsdb",
     "get_prometheus_runtime_info",
     "get_prometheus_config_status",
+    "list_docker_images",
+    "prune_docker_images",
+    "inspect_docker_network",
+    "check_docker_volumes",
+    "get_container_resource_usage",
+    "check_docker_system_health",
 ]
