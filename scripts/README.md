@@ -4,7 +4,7 @@ Automation scripts for development and CI/CD workflows.
 
 ## Available Scripts
 
-### pre-push-check.sh
+### 1. pre-push-check.sh (Validation)
 
 **Purpose:** Validates code quality before pushing to remote repository to catch CI failures early.
 
@@ -94,6 +94,71 @@ You can also run the script manually anytime:
 cd /path/to/anywhere
 /path/to/homelab-agents/scripts/pre-push-check.sh
 ```
+
+---
+
+### 2. auto-fix-formatting.sh (Auto-Fix)
+
+**Purpose:** Automatically fixes code formatting issues (black, isort) that cause CI lint warnings.
+
+**What it fixes:**
+- ✅ Code formatting (black)
+- ✅ Import sorting (isort)
+- ✅ Shows git diff of changes
+- ✅ Provides next steps
+
+**Usage:**
+
+```bash
+# Run from project root
+./scripts/auto-fix-formatting.sh
+
+# Review changes
+git diff
+
+# If satisfied, commit
+git add -A
+git commit -m "style: Auto-format with black and isort"
+git push
+```
+
+**Example output:**
+
+```
+🔧 Auto-fixing code formatting...
+
+1️⃣  Checking formatting tools...
+✓ Tools ready
+
+2️⃣  Running black formatter...
+✓ Formatted 20 file(s)
+
+3️⃣  Running isort...
+✓ Fixed imports in 15 file(s)
+
+4️⃣  Checking changes...
+⚠  Modified files:
+M  crews/approval/approval_manager.py
+M  crews/tools/proxmox_tools.py
+...
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+✓ Auto-fix complete!
+
+Next steps:
+  1. Review changes: git diff
+  2. Run tests: pytest tests/ -m unit
+  3. Commit: git add -A && git commit -m 'style: Auto-format code'
+  4. Push: git push
+```
+
+**When to use:**
+- After seeing lint warnings in CI
+- Before submitting a PR
+- When cleaning up code style
+- Part of regular code maintenance
+
+**Safe to run:** Yes! All changes are tracked by git and can be reviewed/reverted.
 
 ---
 
