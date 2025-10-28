@@ -2,7 +2,8 @@
 # Pre-push CI validation script
 # Run this before pushing to catch CI failures early
 
-set -e
+# Note: Don't use 'set -e' - we want to continue even if some checks fail
+# and report all issues at the end
 
 echo "🔍 Running pre-push CI validation..."
 echo ""
