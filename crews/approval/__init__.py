@@ -2,12 +2,12 @@
 
 from .approval_manager import (
     ApprovalManager,
-    requires_approval,
+    get_approval_manager,
     CRITICAL_SERVICES,
 )
 
 __all__ = [
     "ApprovalManager",
-    "requires_approval",
+    "get_approval_manager",
     "CRITICAL_SERVICES",
 ]
