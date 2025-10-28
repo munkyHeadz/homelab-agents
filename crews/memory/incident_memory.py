@@ -1,13 +1,14 @@
 """Incident Memory System - Learn from past incidents using Qdrant vector database."""
 
+import json
 import os
 import uuid
-import json
 from datetime import datetime
-from typing import List, Dict, Optional
-from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, VectorParams, PointStruct
+from typing import Dict, List, Optional
+
 from langchain_openai import OpenAIEmbeddings
+from qdrant_client import QdrantClient
+from qdrant_client.models import Distance, PointStruct, VectorParams
 
 
 class IncidentMemory:
@@ -25,8 +26,7 @@ class IncidentMemory:
         """Initialize connection to Qdrant and embeddings model."""
         self.client = QdrantClient(url=qdrant_url)
         self.embeddings = OpenAIEmbeddings(
-            model="text-embedding-3-small",
-            api_key=os.getenv("OPENAI_API_KEY")
+            model="text-embedding-3-small", api_key=os.getenv("OPENAI_API_KEY")
         )
         self.collection_name = "agent_memory"
         self._ensure_collection()
@@ -40,8 +40,8 @@ class IncidentMemory:
                     collection_name=self.collection_name,
                     vectors_config=VectorParams(
                         size=1536,  # text-embedding-3-small dimension
-                        distance=Distance.COSINE
-                    )
+                        distance=Distance.COSINE,
+                    ),
                 )
         except Exception as e:
             print(f"Warning: Could not ensure collection: {e}")
@@ -56,7 +56,7 @@ class IncidentMemory:
         remediation_taken: str,
         resolution_status: str,
         resolution_time_seconds: int,
-        metadata: Optional[Dict] = None
+        metadata: Optional[Dict] = None,
     ) -> str:
         """
         Store an incident in memory for future learning.
@@ -97,20 +97,14 @@ class IncidentMemory:
             "remediation_taken": remediation_taken,
             "resolution_status": resolution_status,
             "resolution_time_seconds": resolution_time_seconds,
-            "metadata": metadata or {}
+            "metadata": metadata or {},
         }
 
         # Store in Qdrant
         try:
             self.client.upsert(
                 collection_name=self.collection_name,
-                points=[
-                    PointStruct(
-                        id=incident_id,
-                        vector=embedding,
-                        payload=payload
-                    )
-                ]
+                points=[PointStruct(id=incident_id, vector=embedding, payload=payload)],
             )
             print(f"✓ Stored incident {incident_id} in memory")
         except Exception as e:
@@ -119,10 +113,7 @@ class IncidentMemory:
         return incident_id
 
     def find_similar_incidents(
-        self,
-        query_text: str,
-        limit: int = 5,
-        severity_filter: Optional[str] = None
+        self, query_text: str, limit: int = 5, severity_filter: Optional[str] = None
     ) -> List[Dict]:
         """
         Find similar past incidents using semantic search.
@@ -142,12 +133,13 @@ class IncidentMemory:
             # Build filter if severity specified
             search_filter = None
             if severity_filter:
-                from qdrant_client.models import Filter, FieldCondition, MatchValue
+                from qdrant_client.models import (FieldCondition, Filter,
+                                                  MatchValue)
+
                 search_filter = Filter(
                     must=[
                         FieldCondition(
-                            key="severity",
-                            match=MatchValue(value=severity_filter)
+                            key="severity", match=MatchValue(value=severity_filter)
                         )
                     ]
                 )
@@ -157,7 +149,7 @@ class IncidentMemory:
                 collection_name=self.collection_name,
                 query_vector=query_embedding,
                 limit=limit,
-                query_filter=search_filter
+                query_filter=search_filter,
             )
 
             # Format results
@@ -172,7 +164,7 @@ class IncidentMemory:
                     "root_cause": result.payload["root_cause"],
                     "remediation_taken": result.payload["remediation_taken"],
                     "resolution_status": result.payload["resolution_status"],
-                    "resolution_time": result.payload["resolution_time_seconds"]
+                    "resolution_time": result.payload["resolution_time_seconds"],
                 }
                 similar_incidents.append(incident)
 
@@ -190,7 +182,7 @@ class IncidentMemory:
             # Get all incidents to calculate stats
             all_incidents = self.client.scroll(
                 collection_name=self.collection_name,
-                limit=1000  # Adjust if you have more incidents
+                limit=1000,  # Adjust if you have more incidents
             )[0]
 
             if not all_incidents:
@@ -198,14 +190,21 @@ class IncidentMemory:
                     "total_incidents": 0,
                     "avg_resolution_time": 0,
                     "success_rate": 0,
-                    "by_severity": {}
+                    "by_severity": {},
                 }
 
             total = len(all_incidents)
-            successful = sum(1 for i in all_incidents
-                           if i.payload.get("resolution_status") == "resolved")
-            avg_time = sum(i.payload.get("resolution_time_seconds", 0)
-                          for i in all_incidents) / total if total > 0 else 0
+            successful = sum(
+                1
+                for i in all_incidents
+                if i.payload.get("resolution_status") == "resolved"
+            )
+            avg_time = (
+                sum(i.payload.get("resolution_time_seconds", 0) for i in all_incidents)
+                / total
+                if total > 0
+                else 0
+            )
 
             # Count by severity
             by_severity = {}
@@ -217,7 +216,7 @@ class IncidentMemory:
                 "total_incidents": total,
                 "avg_resolution_time": int(avg_time),
                 "success_rate": (successful / total * 100) if total > 0 else 0,
-                "by_severity": by_severity
+                "by_severity": by_severity,
             }
 
         except Exception as e:

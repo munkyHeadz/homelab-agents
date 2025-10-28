@@ -1,11 +1,11 @@
 """Alertmanager management and monitoring tools for homelab agents."""
 
+import json
+from datetime import datetime, timedelta
+from typing import Optional
+
 import requests
 from crewai.tools import tool
-from typing import Optional
-from datetime import datetime, timedelta
-import json
-
 
 ALERTMANAGER_URL = "http://192.168.1.106:9093"
 REQUEST_TIMEOUT = 10
@@ -33,7 +33,7 @@ def list_active_alerts(state_filter: Optional[str] = None) -> str:
 
         params = {}
         if state_filter:
-            params['filter'] = f'state="{state_filter}"'
+            params["filter"] = f'state="{state_filter}"'
 
         response = requests.get(url, params=params, timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
@@ -49,17 +49,19 @@ def list_active_alerts(state_filter: Optional[str] = None) -> str:
         unprocessed_alerts = []
 
         for alert in alerts:
-            state = alert.get('status', {}).get('state', 'unknown')
-            labels = alert.get('labels', {})
-            annotations = alert.get('annotations', {})
+            state = alert.get("status", {}).get("state", "unknown")
+            labels = alert.get("labels", {})
+            annotations = alert.get("annotations", {})
 
-            alertname = labels.get('alertname', 'unknown')
-            severity = labels.get('severity', 'unknown')
-            instance = labels.get('instance', 'N/A')
-            summary = annotations.get('summary', annotations.get('description', 'No description'))
+            alertname = labels.get("alertname", "unknown")
+            severity = labels.get("severity", "unknown")
+            instance = labels.get("instance", "N/A")
+            summary = annotations.get(
+                "summary", annotations.get("description", "No description")
+            )
 
             # Get silenced by info
-            silenced_by = alert.get('status', {}).get('silencedBy', [])
+            silenced_by = alert.get("status", {}).get("silencedBy", [])
 
             alert_str = f"  • {alertname} ({severity}) - {instance}"
             if summary:
@@ -67,9 +69,9 @@ def list_active_alerts(state_filter: Optional[str] = None) -> str:
             if silenced_by:
                 alert_str += f"\n    Silenced by: {', '.join(silenced_by)}"
 
-            if state == 'active':
+            if state == "active":
                 active_alerts.append(alert_str)
-            elif state == 'suppressed':
+            elif state == "suppressed":
                 suppressed_alerts.append(alert_str)
             else:
                 unprocessed_alerts.append(alert_str)
@@ -78,7 +80,7 @@ def list_active_alerts(state_filter: Optional[str] = None) -> str:
             "=== Alertmanager Active Alerts ===",
             f"Total alerts: {len(alerts)}",
             f"Active: {len(active_alerts)}, Suppressed: {len(suppressed_alerts)}, Unprocessed: {len(unprocessed_alerts)}",
-            ""
+            "",
         ]
 
         if active_alerts:
@@ -98,7 +100,11 @@ def list_active_alerts(state_filter: Optional[str] = None) -> str:
         return "\n".join(output)
 
     except requests.exceptions.ConnectionError:
-        return "✗ Error: Cannot connect to Alertmanager at " + ALERTMANAGER_URL + "\n  Verify Alertmanager is running and accessible"
+        return (
+            "✗ Error: Cannot connect to Alertmanager at "
+            + ALERTMANAGER_URL
+            + "\n  Verify Alertmanager is running and accessible"
+        )
     except requests.exceptions.Timeout:
         return "✗ Error: Alertmanager request timed out (>10s)\n  Alertmanager may be overloaded or unresponsive"
     except requests.exceptions.HTTPError as e:
@@ -143,28 +149,28 @@ def list_alert_silences(active_only: bool = True) -> str:
         now = datetime.utcnow()
 
         for silence in silences:
-            silence_id = silence.get('id', 'unknown')
-            status = silence.get('status', {}).get('state', 'unknown')
+            silence_id = silence.get("id", "unknown")
+            status = silence.get("status", {}).get("state", "unknown")
 
-            matchers = silence.get('matchers', [])
+            matchers = silence.get("matchers", [])
             matcher_strs = []
             for m in matchers:
-                name = m.get('name', 'unknown')
-                value = m.get('value', 'unknown')
-                is_regex = m.get('isRegex', False)
-                is_equal = m.get('isEqual', True)
+                name = m.get("name", "unknown")
+                value = m.get("value", "unknown")
+                is_regex = m.get("isRegex", False)
+                is_equal = m.get("isEqual", True)
 
-                op = '=~' if is_regex else ('=' if is_equal else '!=')
-                matcher_strs.append(f"{name}{op}\"{value}\"")
+                op = "=~" if is_regex else ("=" if is_equal else "!=")
+                matcher_strs.append(f'{name}{op}"{value}"')
 
-            starts_at = silence.get('startsAt', '')
-            ends_at = silence.get('endsAt', '')
-            comment = silence.get('comment', 'No comment')
-            created_by = silence.get('createdBy', 'unknown')
+            starts_at = silence.get("startsAt", "")
+            ends_at = silence.get("endsAt", "")
+            comment = silence.get("comment", "No comment")
+            created_by = silence.get("createdBy", "unknown")
 
             # Parse times
             try:
-                ends_at_dt = datetime.fromisoformat(ends_at.replace('Z', '+00:00'))
+                ends_at_dt = datetime.fromisoformat(ends_at.replace("Z", "+00:00"))
                 time_remaining = ends_at_dt - now
                 hours_remaining = time_remaining.total_seconds() / 3600
 
@@ -181,18 +187,18 @@ def list_alert_silences(active_only: bool = True) -> str:
             silence_str += f"    Comment: {comment}\n"
             silence_str += f"    Created by: {created_by}"
 
-            if status == 'active':
+            if status == "active":
                 active_silences.append(silence_str)
-            elif status == 'pending':
+            elif status == "pending":
                 pending_silences.append(silence_str)
-            elif status == 'expired':
+            elif status == "expired":
                 expired_silences.append(silence_str)
 
         output = [
             "=== Alertmanager Silences ===",
             f"Total silences: {len(silences)}",
             f"Active: {len(active_silences)}, Pending: {len(pending_silences)}, Expired: {len(expired_silences)}",
-            ""
+            "",
         ]
 
         if active_silences:
@@ -212,12 +218,18 @@ def list_alert_silences(active_only: bool = True) -> str:
                 output.append(f"  ... and {len(expired_silences) - 5} more")
 
         if not active_silences and not pending_silences:
-            output.append("✓ No active or pending silences - all alerts are being processed")
+            output.append(
+                "✓ No active or pending silences - all alerts are being processed"
+            )
 
         return "\n".join(output)
 
     except requests.exceptions.ConnectionError:
-        return "✗ Error: Cannot connect to Alertmanager at " + ALERTMANAGER_URL + "\n  Verify Alertmanager is running and accessible"
+        return (
+            "✗ Error: Cannot connect to Alertmanager at "
+            + ALERTMANAGER_URL
+            + "\n  Verify Alertmanager is running and accessible"
+        )
     except requests.exceptions.Timeout:
         return "✗ Error: Alertmanager request timed out (>10s)\n  Alertmanager may be overloaded or unresponsive"
     except requests.exceptions.HTTPError as e:
@@ -230,7 +242,7 @@ def list_alert_silences(active_only: bool = True) -> str:
 def create_alert_silence(
     alertname: str,
     duration_hours: int = 2,
-    comment: str = "Maintenance window - automated silence"
+    comment: str = "Maintenance window - automated silence",
 ) -> str:
     """
     Create a silence for alerts during maintenance windows.
@@ -275,20 +287,20 @@ def create_alert_silence(
                     "name": "alertname",
                     "value": alertname,
                     "isRegex": False,
-                    "isEqual": True
+                    "isEqual": True,
                 }
             ],
             "startsAt": starts_at.isoformat() + "Z",
             "endsAt": ends_at.isoformat() + "Z",
             "createdBy": "homelab-ai-agents",
-            "comment": comment
+            "comment": comment,
         }
 
         response = requests.post(url, json=payload, timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
 
         result = response.json()
-        silence_id = result.get('silenceID', 'unknown')
+        silence_id = result.get("silenceID", "unknown")
 
         output = [
             "✓ Alert silence created successfully",
@@ -298,13 +310,17 @@ def create_alert_silence(
             f"Expires: {ends_at.strftime('%Y-%m-%d %H:%M:%S')} UTC",
             f"Comment: {comment}",
             "",
-            "💡 Use delete_alert_silence() with this ID to remove early"
+            "💡 Use delete_alert_silence() with this ID to remove early",
         ]
 
         return "\n".join(output)
 
     except requests.exceptions.ConnectionError:
-        return "✗ Error: Cannot connect to Alertmanager at " + ALERTMANAGER_URL + "\n  Verify Alertmanager is running and accessible"
+        return (
+            "✗ Error: Cannot connect to Alertmanager at "
+            + ALERTMANAGER_URL
+            + "\n  Verify Alertmanager is running and accessible"
+        )
     except requests.exceptions.Timeout:
         return "✗ Error: Alertmanager request timed out (>10s)\n  Alertmanager may be overloaded or unresponsive"
     except requests.exceptions.HTTPError as e:
@@ -345,7 +361,7 @@ def delete_alert_silence(silence_id: str) -> str:
             "✓ Alert silence deleted successfully",
             f"Silence ID: {silence_id}",
             "",
-            "Alerts matching this silence will now fire normally"
+            "Alerts matching this silence will now fire normally",
         ]
 
         return "\n".join(output)
@@ -355,7 +371,11 @@ def delete_alert_silence(silence_id: str) -> str:
             return f"✗ Error: Silence ID '{silence_id}' not found\n  Use list_alert_silences() to see available silences"
         return f"✗ HTTP Error from Alertmanager: {e.response.status_code}\n  {e.response.text}"
     except requests.exceptions.ConnectionError:
-        return "✗ Error: Cannot connect to Alertmanager at " + ALERTMANAGER_URL + "\n  Verify Alertmanager is running and accessible"
+        return (
+            "✗ Error: Cannot connect to Alertmanager at "
+            + ALERTMANAGER_URL
+            + "\n  Verify Alertmanager is running and accessible"
+        )
     except requests.exceptions.Timeout:
         return "✗ Error: Alertmanager request timed out (>10s)\n  Alertmanager may be overloaded or unresponsive"
     except Exception as e:
@@ -386,25 +406,25 @@ def check_alert_routing(alertname: Optional[str] = None) -> str:
         status_response.raise_for_status()
         status = status_response.json()
 
-        cluster = status.get('cluster', {})
-        config = status.get('config', {})
-        version_info = status.get('versionInfo', {})
+        cluster = status.get("cluster", {})
+        config = status.get("config", {})
+        version_info = status.get("versionInfo", {})
 
         output = [
             "=== Alertmanager Routing Status ===",
             f"Version: {version_info.get('version', 'unknown')}",
             f"Cluster: {cluster.get('status', 'unknown')} ({len(cluster.get('peers', []))} peers)",
-            ""
+            "",
         ]
 
         # Parse routing configuration
-        route = config.get('route', {})
+        route = config.get("route", {})
         if route:
-            receiver = route.get('receiver', 'unknown')
-            group_by = route.get('group_by', [])
-            group_wait = route.get('group_wait', 'unknown')
-            group_interval = route.get('group_interval', 'unknown')
-            repeat_interval = route.get('repeat_interval', 'unknown')
+            receiver = route.get("receiver", "unknown")
+            group_by = route.get("group_by", [])
+            group_wait = route.get("group_wait", "unknown")
+            group_interval = route.get("group_interval", "unknown")
+            repeat_interval = route.get("repeat_interval", "unknown")
 
             output.append("Root Route Configuration:")
             output.append(f"  Default receiver: {receiver}")
@@ -415,13 +435,13 @@ def check_alert_routing(alertname: Optional[str] = None) -> str:
             output.append("")
 
             # Show child routes
-            routes = route.get('routes', [])
+            routes = route.get("routes", [])
             if routes:
                 output.append(f"Child Routes: {len(routes)}")
                 for idx, child_route in enumerate(routes[:5], 1):  # Show first 5
-                    child_receiver = child_route.get('receiver', 'unknown')
-                    matchers = child_route.get('match', {})
-                    match_re = child_route.get('match_re', {})
+                    child_receiver = child_route.get("receiver", "unknown")
+                    matchers = child_route.get("match", {})
+                    match_re = child_route.get("match_re", {})
 
                     output.append(f"  Route {idx}: → {child_receiver}")
                     if matchers:
@@ -436,19 +456,19 @@ def check_alert_routing(alertname: Optional[str] = None) -> str:
                 output.append("")
 
         # List receivers
-        receivers = config.get('receivers', [])
+        receivers = config.get("receivers", [])
         if receivers:
             output.append(f"Configured Receivers: {len(receivers)}")
             for receiver in receivers:
-                name = receiver.get('name', 'unknown')
-                webhook_configs = receiver.get('webhook_configs', [])
-                email_configs = receiver.get('email_configs', [])
-                slack_configs = receiver.get('slack_configs', [])
+                name = receiver.get("name", "unknown")
+                webhook_configs = receiver.get("webhook_configs", [])
+                email_configs = receiver.get("email_configs", [])
+                slack_configs = receiver.get("slack_configs", [])
 
                 output.append(f"  • {name}:")
                 if webhook_configs:
                     for wh in webhook_configs:
-                        url = wh.get('url', 'unknown')
+                        url = wh.get("url", "unknown")
                         output.append(f"    Webhook: {url}")
                 if email_configs:
                     output.append(f"    Email configs: {len(email_configs)}")
@@ -460,12 +480,18 @@ def check_alert_routing(alertname: Optional[str] = None) -> str:
             output.append("")
             output.append(f"Routing for alert '{alertname}':")
             output.append(f"  Would route to: {receiver} (default)")
-            output.append("  💡 Use Alertmanager web UI for detailed routing simulation")
+            output.append(
+                "  💡 Use Alertmanager web UI for detailed routing simulation"
+            )
 
         return "\n".join(output)
 
     except requests.exceptions.ConnectionError:
-        return "✗ Error: Cannot connect to Alertmanager at " + ALERTMANAGER_URL + "\n  Verify Alertmanager is running and accessible"
+        return (
+            "✗ Error: Cannot connect to Alertmanager at "
+            + ALERTMANAGER_URL
+            + "\n  Verify Alertmanager is running and accessible"
+        )
     except requests.exceptions.Timeout:
         return "✗ Error: Alertmanager request timed out (>10s)\n  Alertmanager may be overloaded or unresponsive"
     except requests.exceptions.HTTPError as e:
@@ -508,17 +534,23 @@ def get_alertmanager_status() -> str:
         silences = silences_response.json()
 
         # Parse status
-        cluster = status.get('cluster', {})
-        config = status.get('config', {})
-        version_info = status.get('versionInfo', {})
-        uptime = status.get('uptime', 'unknown')
+        cluster = status.get("cluster", {})
+        config = status.get("config", {})
+        version_info = status.get("versionInfo", {})
+        uptime = status.get("uptime", "unknown")
 
         # Count alert states
-        active_count = sum(1 for a in alerts if a.get('status', {}).get('state') == 'active')
-        suppressed_count = sum(1 for a in alerts if a.get('status', {}).get('state') == 'suppressed')
+        active_count = sum(
+            1 for a in alerts if a.get("status", {}).get("state") == "active"
+        )
+        suppressed_count = sum(
+            1 for a in alerts if a.get("status", {}).get("state") == "suppressed"
+        )
 
         # Count silence states
-        active_silences = sum(1 for s in silences if s.get('status', {}).get('state') == 'active')
+        active_silences = sum(
+            1 for s in silences if s.get("status", {}).get("state") == "active"
+        )
 
         output = [
             "=== Alertmanager System Status ===",
@@ -548,10 +580,12 @@ def get_alertmanager_status() -> str:
 
         # Health check
         output.append("")
-        if cluster.get('status') == 'ready':
+        if cluster.get("status") == "ready":
             output.append("✓ Alertmanager is healthy and operational")
         else:
-            output.append("⚠️ Alertmanager cluster status: " + cluster.get('status', 'unknown'))
+            output.append(
+                "⚠️ Alertmanager cluster status: " + cluster.get("status", "unknown")
+            )
 
         if active_count == 0:
             output.append("✓ No active alerts")
@@ -561,7 +595,11 @@ def get_alertmanager_status() -> str:
         return "\n".join(output)
 
     except requests.exceptions.ConnectionError:
-        return "✗ Error: Cannot connect to Alertmanager at " + ALERTMANAGER_URL + "\n  Verify Alertmanager is running and accessible"
+        return (
+            "✗ Error: Cannot connect to Alertmanager at "
+            + ALERTMANAGER_URL
+            + "\n  Verify Alertmanager is running and accessible"
+        )
     except requests.exceptions.Timeout:
         return "✗ Error: Alertmanager request timed out (>10s)\n  Alertmanager may be overloaded or unresponsive"
     except requests.exceptions.HTTPError as e:

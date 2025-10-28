@@ -4,11 +4,12 @@ Comprehensive integration tests for homelab agent system
 """
 
 import asyncio
-import sys
 import os
-import requests
+import sys
 import time
-from typing import Dict, Any, List
+from typing import Any, Dict, List
+
+import requests
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -49,18 +50,18 @@ class IntegrationTests:
             resp = requests.get("http://192.168.1.107:9090/api/v1/targets", timeout=5)
             if resp.status_code == 200:
                 data = resp.json()
-                targets = data['data']['activeTargets']
+                targets = data["data"]["activeTargets"]
 
                 # Check each target
                 for target in targets:
-                    job = target['labels']['job']
-                    health = target['health']
-                    instance = target['labels']['instance']
+                    job = target["labels"]["job"]
+                    health = target["health"]
+                    instance = target["labels"]["instance"]
 
                     self.test(
                         f"Prometheus Target: {job}",
                         health == "up",
-                        f"Instance: {instance}, Health: {health}"
+                        f"Instance: {instance}, Health: {health}",
                     )
             else:
                 self.test("Prometheus API", False, f"HTTP {resp.status_code}")
@@ -86,10 +87,12 @@ class IntegrationTests:
                     self.test(
                         f"Metrics Endpoint: {name}",
                         has_metrics,
-                        f"URL: {url}, Size: {len(resp.text)} bytes"
+                        f"URL: {url}, Size: {len(resp.text)} bytes",
                     )
                 else:
-                    self.test(f"Metrics Endpoint: {name}", False, f"HTTP {resp.status_code}")
+                    self.test(
+                        f"Metrics Endpoint: {name}", False, f"HTTP {resp.status_code}"
+                    )
             except Exception as e:
                 self.test(f"Metrics Endpoint: {name}", False, str(e))
 
@@ -114,7 +117,7 @@ class IntegrationTests:
                     self.test(
                         f"Custom Metric: {metric}",
                         found,
-                        "Found in metrics output" if found else "Not found"
+                        "Found in metrics output" if found else "Not found",
                     )
             else:
                 self.test("Custom Metrics", False, f"HTTP {resp.status_code}")
@@ -127,7 +130,9 @@ class IntegrationTests:
 
         try:
             agent = InfrastructureAgent()
-            self.test("Infrastructure Agent Init", True, "Agent initialized successfully")
+            self.test(
+                "Infrastructure Agent Init", True, "Agent initialized successfully"
+            )
 
             # Test resource monitoring
             result = await agent.monitor_resources()
@@ -139,7 +144,7 @@ class IntegrationTests:
             self.test(
                 "Agent Resource Monitoring",
                 success and has_proxmox and has_docker,
-                f"Success: {success}, Proxmox data: {has_proxmox}, Docker data: {has_docker}"
+                f"Success: {success}, Proxmox data: {has_proxmox}, Docker data: {has_docker}",
             )
 
             # Test simple execution
@@ -147,9 +152,7 @@ class IntegrationTests:
             exec_success = exec_result.get("success", False)
 
             self.test(
-                "Agent Task Execution",
-                exec_success,
-                f"Task completed: {exec_success}"
+                "Agent Task Execution", exec_success, f"Task completed: {exec_success}"
             )
 
         except Exception as e:
@@ -170,7 +173,7 @@ class IntegrationTests:
             self.test(
                 "Monitoring Agent Health Check",
                 health_success,
-                f"Health check completed: {health_success}"
+                f"Health check completed: {health_success}",
             )
 
         except Exception as e:
@@ -184,26 +187,30 @@ class IntegrationTests:
             resp = requests.get("http://192.168.1.107:9090/api/v1/rules", timeout=5)
             if resp.status_code == 200:
                 data = resp.json()
-                groups = data['data']['groups']
+                groups = data["data"]["groups"]
 
-                total_rules = sum(len(g['rules']) for g in groups)
+                total_rules = sum(len(g["rules"]) for g in groups)
 
                 self.test(
                     "Alert Rules Loaded",
                     total_rules > 0,
-                    f"Total groups: {len(groups)}, Total rules: {total_rules}"
+                    f"Total groups: {len(groups)}, Total rules: {total_rules}",
                 )
 
                 # Check specific rule groups exist
-                group_names = [g['name'] for g in groups]
-                expected_groups = ['infrastructure_alerts', 'agent_alerts', 'docker_alerts']
+                group_names = [g["name"] for g in groups]
+                expected_groups = [
+                    "infrastructure_alerts",
+                    "agent_alerts",
+                    "docker_alerts",
+                ]
 
                 for group in expected_groups:
                     found = group in group_names
                     self.test(
                         f"Alert Group: {group}",
                         found,
-                        "Found" if found else "Not found"
+                        "Found" if found else "Not found",
                     )
             else:
                 self.test("Alert Rules", False, f"HTTP {resp.status_code}")
@@ -221,24 +228,23 @@ class IntegrationTests:
                 health = resp.json()
                 self.test(
                     "Grafana Health",
-                    health.get('database') == 'ok',
-                    f"Database: {health.get('database')}"
+                    health.get("database") == "ok",
+                    f"Database: {health.get('database')}",
                 )
             else:
                 self.test("Grafana Health", False, f"HTTP {resp.status_code}")
 
             # Test datasource
             resp = requests.get(
-                "http://admin:admin@192.168.1.107:3000/api/datasources",
-                timeout=5
+                "http://admin:admin@192.168.1.107:3000/api/datasources", timeout=5
             )
             if resp.status_code == 200:
                 datasources = resp.json()
-                has_prometheus = any(ds['type'] == 'prometheus' for ds in datasources)
+                has_prometheus = any(ds["type"] == "prometheus" for ds in datasources)
                 self.test(
                     "Grafana Prometheus Datasource",
                     has_prometheus,
-                    f"Found {len(datasources)} datasources"
+                    f"Found {len(datasources)} datasources",
                 )
             else:
                 self.test("Grafana Datasources", False, f"HTTP {resp.status_code}")
@@ -263,16 +269,23 @@ class IntegrationTests:
         for name, lxc_id, service in services:
             try:
                 result = subprocess.run(
-                    ["sudo", "pct", "exec", lxc_id, "--", "systemctl", "is-active", service],
+                    [
+                        "sudo",
+                        "pct",
+                        "exec",
+                        lxc_id,
+                        "--",
+                        "systemctl",
+                        "is-active",
+                        service,
+                    ],
                     capture_output=True,
                     text=True,
-                    timeout=5
+                    timeout=5,
                 )
                 is_active = result.stdout.strip() == "active"
                 self.test(
-                    f"Service: {name}",
-                    is_active,
-                    f"Status: {result.stdout.strip()}"
+                    f"Service: {name}", is_active, f"Status: {result.stdout.strip()}"
                 )
             except Exception as e:
                 self.test(f"Service: {name}", False, str(e))
@@ -295,16 +308,16 @@ class IntegrationTests:
                 self.test(
                     f"Connectivity: {name}",
                     resp.status_code in [200, 201],
-                    f"HTTP {resp.status_code}"
+                    f"HTTP {resp.status_code}",
                 )
             except Exception as e:
                 self.test(f"Connectivity: {name}", False, str(e))
 
     async def run_all_tests(self):
         """Run all tests"""
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("HOMELAB AGENT SYSTEM - INTEGRATION TEST SUITE")
-        print("="*60)
+        print("=" * 60)
 
         start_time = time.time()
 
@@ -324,15 +337,15 @@ class IntegrationTests:
         duration = time.time() - start_time
 
         # Print summary
-        print("\n" + "="*60)
+        print("\n" + "=" * 60)
         print("TEST SUMMARY")
-        print("="*60)
+        print("=" * 60)
         print(f"Total Tests: {self.passed + self.failed}")
         print(f"Passed: {self.passed} ✅")
         print(f"Failed: {self.failed} ❌")
         print(f"Success Rate: {(self.passed / (self.passed + self.failed) * 100):.1f}%")
         print(f"Duration: {duration:.2f}s")
-        print("="*60)
+        print("=" * 60)
 
         return self.failed == 0
 

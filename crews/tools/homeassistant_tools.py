@@ -7,8 +7,9 @@ API Documentation: https://developers.home-assistant.io/docs/api/rest/
 """
 
 import os
+from typing import Any, Dict, List, Optional
+
 import requests
-from typing import Dict, Any, Optional, List
 from crewai.tools import tool
 from dotenv import load_dotenv
 
@@ -20,14 +21,14 @@ HOMEASSISTANT_URL = os.getenv("HOMEASSISTANT_URL", "http://192.168.1.108:8123")
 HOMEASSISTANT_TOKEN = os.getenv("HOMEASSISTANT_TOKEN", "")
 
 # Common error messages
-ERROR_NOT_CONFIGURED = "❌ Home Assistant not configured (HOMEASSISTANT_TOKEN missing in .env)"
+ERROR_NOT_CONFIGURED = (
+    "❌ Home Assistant not configured (HOMEASSISTANT_TOKEN missing in .env)"
+)
 ERROR_DISABLED = "⚠️ Home Assistant monitoring disabled (HOMEASSISTANT_ENABLED=false)"
 
 
 def _make_homeassistant_request(
-    endpoint: str,
-    method: str = "GET",
-    data: Optional[Dict] = None
+    endpoint: str, method: str = "GET", data: Optional[Dict] = None
 ) -> Dict[str, Any]:
     """
     Make HTTP request to Home Assistant REST API.
@@ -52,7 +53,7 @@ def _make_homeassistant_request(
     url = f"{HOMEASSISTANT_URL}/api/{endpoint}"
     headers = {
         "Authorization": f"Bearer {HOMEASSISTANT_TOKEN}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
 
     try:
@@ -99,7 +100,9 @@ def _make_homeassistant_request(
                 f"❌ Home Assistant API error {e.response.status_code}: {e.response.text}"
             )
     except Exception as e:
-        raise Exception(f"❌ Unexpected error communicating with Home Assistant: {str(e)}")
+        raise Exception(
+            f"❌ Unexpected error communicating with Home Assistant: {str(e)}"
+        )
 
 
 @tool("Check Home Assistant Status")
@@ -193,7 +196,9 @@ def list_homeassistant_entities(domain: Optional[str] = None) -> str:
 
         # If domain specified, filter
         if domain:
-            filtered = [s for s in states if s.get("entity_id", "").startswith(f"{domain}.")]
+            filtered = [
+                s for s in states if s.get("entity_id", "").startswith(f"{domain}.")
+            ]
             if not filtered:
                 return f"ℹ️ No entities found for domain: {domain}"
 
@@ -201,7 +206,9 @@ def list_homeassistant_entities(domain: Optional[str] = None) -> str:
             for entity in filtered[:50]:  # Limit to 50 for readability
                 entity_id = entity.get("entity_id", "unknown")
                 state = entity.get("state", "unknown")
-                friendly_name = entity.get("attributes", {}).get("friendly_name", entity_id)
+                friendly_name = entity.get("attributes", {}).get(
+                    "friendly_name", entity_id
+                )
                 last_changed = entity.get("last_changed", "unknown")
 
                 result.append(
@@ -220,12 +227,18 @@ def list_homeassistant_entities(domain: Optional[str] = None) -> str:
             entity_domain = entity.get("entity_id", "").split(".")[0]
             domain_counts[entity_domain] = domain_counts.get(entity_domain, 0) + 1
 
-        result = [f"📊 **Home Assistant Entity Summary** ({len(states)} total entities)\n"]
-        for domain_name, count in sorted(domain_counts.items(), key=lambda x: x[1], reverse=True):
+        result = [
+            f"📊 **Home Assistant Entity Summary** ({len(states)} total entities)\n"
+        ]
+        for domain_name, count in sorted(
+            domain_counts.items(), key=lambda x: x[1], reverse=True
+        ):
             result.append(f"   • {domain_name}: {count} entities")
 
         result.append("\n💡 Use domain parameter to list specific entity types")
-        result.append("   Example domains: sensor, switch, light, binary_sensor, automation")
+        result.append(
+            "   Example domains: sensor, switch, light, binary_sensor, automation"
+        )
 
         return "\n".join(result)
 
@@ -277,13 +290,22 @@ def get_entity_state(entity_id: str) -> str:
 
         # Add interesting attributes
         interesting_attrs = [
-            "battery_level", "temperature", "humidity", "brightness",
-            "current_position", "is_on", "available", "last_seen"
+            "battery_level",
+            "temperature",
+            "humidity",
+            "brightness",
+            "current_position",
+            "is_on",
+            "available",
+            "last_seen",
         ]
 
         extra_attrs = []
         for key, value in attributes.items():
-            if key in interesting_attrs and key not in ["friendly_name", "unit_of_measurement"]:
+            if key in interesting_attrs and key not in [
+                "friendly_name",
+                "unit_of_measurement",
+            ]:
                 extra_attrs.append(f"   • {key}: {value}")
 
         if extra_attrs:
@@ -339,7 +361,7 @@ def get_entity_history(entity_id: str, hours: int = 24) -> str:
 
         result = [
             f"📜 **History for {entity_id}** (last {hours} hours)\n",
-            f"Total state changes: {len(entity_history)}\n"
+            f"Total state changes: {len(entity_history)}\n",
         ]
 
         # Show last 20 changes
@@ -349,9 +371,7 @@ def get_entity_history(entity_id: str, hours: int = 24) -> str:
             attributes = state.get("attributes", {})
             unit = attributes.get("unit_of_measurement", "")
 
-            result.append(
-                f"{i + 1}. {last_changed}: {state_value} {unit}".strip()
-            )
+            result.append(f"{i + 1}. {last_changed}: {state_value} {unit}".strip())
 
         if len(entity_history) > 20:
             result.append(f"\n... and {len(entity_history) - 20} earlier changes")
@@ -379,7 +399,9 @@ def check_automation_status() -> str:
         states = _make_homeassistant_request("states")
 
         # Filter for automation entities
-        automations = [s for s in states if s.get("entity_id", "").startswith("automation.")]
+        automations = [
+            s for s in states if s.get("entity_id", "").startswith("automation.")
+        ]
 
         if not automations:
             return "ℹ️ No automations found in Home Assistant"
@@ -454,7 +476,9 @@ def get_homeassistant_summary() -> str:
                 unavailable_count += 1
 
         # Count automations
-        automations = [s for s in states if s.get("entity_id", "").startswith("automation.")]
+        automations = [
+            s for s in states if s.get("entity_id", "").startswith("automation.")
+        ]
         enabled_automations = sum(1 for a in automations if a.get("state") == "on")
 
         result = [
@@ -463,19 +487,29 @@ def get_homeassistant_summary() -> str:
             f"**Version:** {version}",
             f"**Total Entities:** {len(states)}",
             f"**Unavailable:** {unavailable_count}",
-            ""
+            "",
         ]
 
         # Top domains
         result.append("**Entity Breakdown:**")
-        for domain, count in sorted(domain_counts.items(), key=lambda x: x[1], reverse=True)[:10]:
+        for domain, count in sorted(
+            domain_counts.items(), key=lambda x: x[1], reverse=True
+        )[:10]:
             result.append(f"   • {domain}: {count}")
 
         # Automation summary
-        result.append(f"\n**Automations:** {enabled_automations}/{len(automations)} enabled")
+        result.append(
+            f"\n**Automations:** {enabled_automations}/{len(automations)} enabled"
+        )
 
         # Health indicator
-        health_status = "🟢 HEALTHY" if unavailable_count < 5 else "🟡 CHECK ENTITIES" if unavailable_count < 20 else "🔴 MANY UNAVAILABLE"
+        health_status = (
+            "🟢 HEALTHY"
+            if unavailable_count < 5
+            else (
+                "🟡 CHECK ENTITIES" if unavailable_count < 20 else "🔴 MANY UNAVAILABLE"
+            )
+        )
         result.append(f"\n**Health:** {health_status}")
 
         return "\n".join(result)

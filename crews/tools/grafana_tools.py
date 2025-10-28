@@ -1,12 +1,12 @@
 """Grafana API tools for dashboard management and incident correlation."""
 
-import requests
-import os
-from crewai.tools import tool
-from typing import Optional
-from datetime import datetime
 import json
+import os
+from datetime import datetime
+from typing import Optional
 
+import requests
+from crewai.tools import tool
 
 GRAFANA_URL = "http://100.120.140.105:3000"
 REQUEST_TIMEOUT = 10
@@ -15,9 +15,9 @@ REQUEST_TIMEOUT = 10
 def _get_grafana_headers():
     """Get authentication headers for Grafana API."""
     # Try API key first (if configured)
-    api_key = os.getenv('GRAFANA_API_KEY')
+    api_key = os.getenv("GRAFANA_API_KEY")
     if api_key:
-        return {'Authorization': f'Bearer {api_key}'}
+        return {"Authorization": f"Bearer {api_key}"}
 
     # Fallback to basic auth (default admin:admin)
     # In production, should use API key
@@ -26,21 +26,19 @@ def _get_grafana_headers():
 
 def _get_grafana_auth():
     """Get authentication tuple for requests."""
-    api_key = os.getenv('GRAFANA_API_KEY')
+    api_key = os.getenv("GRAFANA_API_KEY")
     if api_key:
         return None  # Use headers instead
 
     # Fallback to basic auth
-    username = os.getenv('GRAFANA_USERNAME', 'admin')
-    password = os.getenv('GRAFANA_PASSWORD', 'admin')
+    username = os.getenv("GRAFANA_USERNAME", "admin")
+    password = os.getenv("GRAFANA_PASSWORD", "admin")
     return (username, password)
 
 
 @tool("Add Annotation to Grafana")
 def add_annotation(
-    text: str,
-    tags: Optional[str] = None,
-    dashboard_id: Optional[int] = None
+    text: str, tags: Optional[str] = None, dashboard_id: Optional[int] = None
 ) -> str:
     """
     Add an annotation to Grafana graphs to mark incidents and events.
@@ -76,27 +74,23 @@ def add_annotation(
 
         # Add tags if provided
         if tags:
-            tag_list = [tag.strip() for tag in tags.split(',')]
-            payload['tags'] = tag_list
+            tag_list = [tag.strip() for tag in tags.split(",")]
+            payload["tags"] = tag_list
 
         # Add dashboard if specified
         if dashboard_id:
-            payload['dashboardId'] = dashboard_id
+            payload["dashboardId"] = dashboard_id
 
         headers = _get_grafana_headers()
         auth = _get_grafana_auth()
 
         response = requests.post(
-            url,
-            json=payload,
-            headers=headers,
-            auth=auth,
-            timeout=REQUEST_TIMEOUT
+            url, json=payload, headers=headers, auth=auth, timeout=REQUEST_TIMEOUT
         )
         response.raise_for_status()
 
         result = response.json()
-        annotation_id = result.get('id', 'unknown')
+        annotation_id = result.get("id", "unknown")
 
         output = [
             "✓ Annotation added to Grafana",
@@ -113,7 +107,9 @@ def add_annotation(
             output.append("Scope: All dashboards")
 
         output.append("")
-        output.append("💡 Annotation is now visible on Grafana graphs at the current time")
+        output.append(
+            "💡 Annotation is now visible on Grafana graphs at the current time"
+        )
 
         return "\n".join(output)
 
@@ -124,7 +120,9 @@ def add_annotation(
     except requests.exceptions.HTTPError as e:
         if e.response.status_code == 401:
             return "✗ Error: Grafana authentication failed\n  Check GRAFANA_API_KEY or GRAFANA_USERNAME/PASSWORD"
-        return f"✗ HTTP Error from Grafana: {e.response.status_code}\n  {e.response.text}"
+        return (
+            f"✗ HTTP Error from Grafana: {e.response.status_code}\n  {e.response.text}"
+        )
     except Exception as e:
         return f"✗ Error adding Grafana annotation: {str(e)}"
 
@@ -156,18 +154,22 @@ def get_grafana_status() -> str:
 
         # Get user info (validates auth and gets version)
         user_url = f"{GRAFANA_URL}/api/user"
-        user_response = requests.get(user_url, headers=headers, auth=auth, timeout=REQUEST_TIMEOUT)
+        user_response = requests.get(
+            user_url, headers=headers, auth=auth, timeout=REQUEST_TIMEOUT
+        )
 
         # Get admin stats
         stats_url = f"{GRAFANA_URL}/api/admin/stats"
-        stats_response = requests.get(stats_url, headers=headers, auth=auth, timeout=REQUEST_TIMEOUT)
+        stats_response = requests.get(
+            stats_url, headers=headers, auth=auth, timeout=REQUEST_TIMEOUT
+        )
 
         output = [
             "=== Grafana Status ===",
         ]
 
         # Health info
-        if health.get('database') == 'ok':
+        if health.get("database") == "ok":
             output.append("Database: ✓ OK")
         else:
             output.append(f"Database: ⚠️ {health.get('database', 'unknown')}")
@@ -198,7 +200,7 @@ def get_grafana_status() -> str:
             output.append(f"  Annotations: {stats.get('annotations', 'N/A')}")
 
         output.append("")
-        if health.get('database') == 'ok':
+        if health.get("database") == "ok":
             output.append("✓ Grafana is healthy and operational")
         else:
             output.append("⚠️ Grafana may have issues - check database")
@@ -210,7 +212,9 @@ def get_grafana_status() -> str:
     except requests.exceptions.Timeout:
         return "✗ Error: Grafana request timed out (>10s)\n  Grafana may be overloaded or unresponsive"
     except requests.exceptions.HTTPError as e:
-        return f"✗ HTTP Error from Grafana: {e.response.status_code}\n  {e.response.text}"
+        return (
+            f"✗ HTTP Error from Grafana: {e.response.status_code}\n  {e.response.text}"
+        )
     except Exception as e:
         return f"✗ Error getting Grafana status: {str(e)}"
 
@@ -237,16 +241,12 @@ def list_dashboards(search: Optional[str] = None) -> str:
         headers = _get_grafana_headers()
         auth = _get_grafana_auth()
 
-        params = {'type': 'dash-db'}
+        params = {"type": "dash-db"}
         if search:
-            params['query'] = search
+            params["query"] = search
 
         response = requests.get(
-            url,
-            params=params,
-            headers=headers,
-            auth=auth,
-            timeout=REQUEST_TIMEOUT
+            url, params=params, headers=headers, auth=auth, timeout=REQUEST_TIMEOUT
         )
         response.raise_for_status()
 
@@ -268,11 +268,11 @@ def list_dashboards(search: Optional[str] = None) -> str:
         output.append("")
 
         for dash in dashboards[:20]:  # Limit to 20 for readability
-            title = dash.get('title', 'unknown')
-            uid = dash.get('uid', 'unknown')
-            url_path = dash.get('url', '')
-            tags = dash.get('tags', [])
-            folder = dash.get('folderTitle', 'General')
+            title = dash.get("title", "unknown")
+            uid = dash.get("uid", "unknown")
+            url_path = dash.get("url", "")
+            tags = dash.get("tags", [])
+            folder = dash.get("folderTitle", "General")
 
             output.append(f"• {title}")
             output.append(f"  UID: {uid}")
@@ -295,7 +295,9 @@ def list_dashboards(search: Optional[str] = None) -> str:
     except requests.exceptions.HTTPError as e:
         if e.response.status_code == 401:
             return "✗ Error: Grafana authentication failed\n  Check GRAFANA_API_KEY or GRAFANA_USERNAME/PASSWORD"
-        return f"✗ HTTP Error from Grafana: {e.response.status_code}\n  {e.response.text}"
+        return (
+            f"✗ HTTP Error from Grafana: {e.response.status_code}\n  {e.response.text}"
+        )
     except Exception as e:
         return f"✗ Error listing Grafana dashboards: {str(e)}"
 
@@ -323,21 +325,18 @@ def get_dashboard(dashboard_uid: str) -> str:
         auth = _get_grafana_auth()
 
         response = requests.get(
-            url,
-            headers=headers,
-            auth=auth,
-            timeout=REQUEST_TIMEOUT
+            url, headers=headers, auth=auth, timeout=REQUEST_TIMEOUT
         )
         response.raise_for_status()
 
         result = response.json()
-        dashboard = result.get('dashboard', {})
-        meta = result.get('meta', {})
+        dashboard = result.get("dashboard", {})
+        meta = result.get("meta", {})
 
-        title = dashboard.get('title', 'unknown')
-        uid = dashboard.get('uid', 'unknown')
-        tags = dashboard.get('tags', [])
-        panels = dashboard.get('panels', [])
+        title = dashboard.get("title", "unknown")
+        uid = dashboard.get("uid", "unknown")
+        tags = dashboard.get("tags", [])
+        panels = dashboard.get("panels", [])
 
         output = [
             f"=== Dashboard: {title} ===",
@@ -360,11 +359,11 @@ def get_dashboard(dashboard_uid: str) -> str:
             output.append("")
             output.append("Panel List:")
             for panel in panels[:10]:  # Limit to 10
-                panel_title = panel.get('title', 'Untitled')
-                panel_type = panel.get('type', 'unknown')
-                datasource = panel.get('datasource', {})
+                panel_title = panel.get("title", "Untitled")
+                panel_type = panel.get("type", "unknown")
+                datasource = panel.get("datasource", {})
                 if isinstance(datasource, dict):
-                    ds_name = datasource.get('uid', 'unknown')
+                    ds_name = datasource.get("uid", "unknown")
                 else:
                     ds_name = datasource
 
@@ -375,14 +374,14 @@ def get_dashboard(dashboard_uid: str) -> str:
                 output.append(f"  ... and {len(panels) - 10} more panels")
 
         # Variables
-        templating = dashboard.get('templating', {})
-        variables = templating.get('list', [])
+        templating = dashboard.get("templating", {})
+        variables = templating.get("list", [])
         if variables:
             output.append("")
             output.append(f"Variables: {len(variables)}")
             for var in variables[:5]:
-                var_name = var.get('name', 'unknown')
-                var_type = var.get('type', 'unknown')
+                var_name = var.get("name", "unknown")
+                var_type = var.get("type", "unknown")
                 output.append(f"  • ${var_name} ({var_type})")
 
         return "\n".join(output)
@@ -396,16 +395,16 @@ def get_dashboard(dashboard_uid: str) -> str:
             return f"✗ Error: Dashboard UID '{dashboard_uid}' not found\n  Use list_dashboards() to see available dashboards"
         if e.response.status_code == 401:
             return "✗ Error: Grafana authentication failed\n  Check GRAFANA_API_KEY or GRAFANA_USERNAME/PASSWORD"
-        return f"✗ HTTP Error from Grafana: {e.response.status_code}\n  {e.response.text}"
+        return (
+            f"✗ HTTP Error from Grafana: {e.response.status_code}\n  {e.response.text}"
+        )
     except Exception as e:
         return f"✗ Error getting Grafana dashboard: {str(e)}"
 
 
 @tool("Create Dashboard Snapshot")
 def create_snapshot(
-    dashboard_uid: str,
-    name: Optional[str] = None,
-    expires_seconds: int = 3600
+    dashboard_uid: str, name: Optional[str] = None, expires_seconds: int = 3600
 ) -> str:
     """
     Create a snapshot of a dashboard to capture its state during an incident.
@@ -443,19 +442,19 @@ def create_snapshot(
         auth = _get_grafana_auth()
 
         dash_response = requests.get(
-            dash_url,
-            headers=headers,
-            auth=auth,
-            timeout=REQUEST_TIMEOUT
+            dash_url, headers=headers, auth=auth, timeout=REQUEST_TIMEOUT
         )
         dash_response.raise_for_status()
 
-        dashboard_data = dash_response.json().get('dashboard', {})
+        dashboard_data = dash_response.json().get("dashboard", {})
 
         # Create snapshot
         snapshot_url = f"{GRAFANA_URL}/api/snapshots"
 
-        snapshot_name = name or f"Incident snapshot - {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"
+        snapshot_name = (
+            name
+            or f"Incident snapshot - {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')}"
+        )
 
         payload = {
             "dashboard": dashboard_data,
@@ -468,17 +467,17 @@ def create_snapshot(
             json=payload,
             headers=headers,
             auth=auth,
-            timeout=REQUEST_TIMEOUT
+            timeout=REQUEST_TIMEOUT,
         )
         response.raise_for_status()
 
         result = response.json()
-        snap_url = result.get('url', 'unknown')
-        snap_key = result.get('key', 'unknown')
-        delete_key = result.get('deleteKey', 'unknown')
+        snap_url = result.get("url", "unknown")
+        snap_key = result.get("key", "unknown")
+        delete_key = result.get("deleteKey", "unknown")
 
         expires_at = datetime.utcnow().timestamp() + expires_seconds
-        expires_str = datetime.fromtimestamp(expires_at).strftime('%Y-%m-%d %H:%M:%S')
+        expires_str = datetime.fromtimestamp(expires_at).strftime("%Y-%m-%d %H:%M:%S")
 
         output = [
             "✓ Dashboard snapshot created",
@@ -502,7 +501,9 @@ def create_snapshot(
             return f"✗ Error: Dashboard UID '{dashboard_uid}' not found\n  Use list_dashboards() to see available dashboards"
         if e.response.status_code == 401:
             return "✗ Error: Grafana authentication failed\n  Check GRAFANA_API_KEY or GRAFANA_USERNAME/PASSWORD"
-        return f"✗ HTTP Error from Grafana: {e.response.status_code}\n  {e.response.text}"
+        return (
+            f"✗ HTTP Error from Grafana: {e.response.status_code}\n  {e.response.text}"
+        )
     except Exception as e:
         return f"✗ Error creating Grafana snapshot: {str(e)}"
 
@@ -527,10 +528,7 @@ def list_datasources() -> str:
         auth = _get_grafana_auth()
 
         response = requests.get(
-            url,
-            headers=headers,
-            auth=auth,
-            timeout=REQUEST_TIMEOUT
+            url, headers=headers, auth=auth, timeout=REQUEST_TIMEOUT
         )
         response.raise_for_status()
 
@@ -542,15 +540,15 @@ def list_datasources() -> str:
         output = [
             "=== Grafana Datasources ===",
             f"Total datasources: {len(datasources)}",
-            ""
+            "",
         ]
 
         for ds in datasources:
-            name = ds.get('name', 'unknown')
-            ds_type = ds.get('type', 'unknown')
-            url_val = ds.get('url', 'N/A')
-            uid = ds.get('uid', 'unknown')
-            is_default = ds.get('isDefault', False)
+            name = ds.get("name", "unknown")
+            ds_type = ds.get("type", "unknown")
+            url_val = ds.get("url", "N/A")
+            uid = ds.get("uid", "unknown")
+            is_default = ds.get("isDefault", False)
 
             output.append(f"• {name} ({ds_type})")
             output.append(f"  UID: {uid}")
@@ -560,7 +558,9 @@ def list_datasources() -> str:
             output.append("")
 
         # Try to health check Prometheus datasource if exists
-        prom_ds = next((ds for ds in datasources if ds.get('type') == 'prometheus'), None)
+        prom_ds = next(
+            (ds for ds in datasources if ds.get("type") == "prometheus"), None
+        )
         if prom_ds:
             output.append("💡 Prometheus datasource detected")
             output.append(f"   Use query_prometheus tool for direct queries")
@@ -574,6 +574,8 @@ def list_datasources() -> str:
     except requests.exceptions.HTTPError as e:
         if e.response.status_code == 401:
             return "✗ Error: Grafana authentication failed\n  Check GRAFANA_API_KEY or GRAFANA_USERNAME/PASSWORD"
-        return f"✗ HTTP Error from Grafana: {e.response.status_code}\n  {e.response.text}"
+        return (
+            f"✗ HTTP Error from Grafana: {e.response.status_code}\n  {e.response.text}"
+        )
     except Exception as e:
         return f"✗ Error listing Grafana datasources: {str(e)}"

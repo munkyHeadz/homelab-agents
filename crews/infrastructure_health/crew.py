@@ -3,99 +3,57 @@
 import os
 import time
 from datetime import datetime
-from crewai import Agent, Task, Crew, Process
-from langchain_openai import ChatOpenAI
+
+from crewai import Agent, Crew, Process, Task
 from dotenv import load_dotenv
-from crews.tools import (
-    query_prometheus,
-    check_container_status,
-    restart_container,
-    check_container_logs,
-    check_lxc_status,
-    restart_lxc,
-    send_telegram,
-    list_tailscale_devices,
-    check_device_connectivity,
-    monitor_vpn_health,
-    get_critical_infrastructure_status,
-    check_postgres_health,
-    query_database_performance,
-    check_database_sizes,
-    monitor_database_connections,
-    check_specific_database,
-    check_replication_status,
-    check_table_bloat,
-    analyze_slow_queries,
-    check_index_health,
-    monitor_vacuum_status,
-    check_database_locks,
-    vacuum_postgres_table,
-    clear_postgres_connections,
-    list_unifi_devices,
-    check_ap_health,
-    monitor_network_clients,
-    check_wan_connectivity,
-    monitor_switch_ports,
-    get_network_performance,
-    list_cloudflare_zones,
-    check_zone_health,
-    get_cloudflare_analytics,
-    check_security_events,
-    monitor_dns_records,
-    get_cloudflare_status,
-    check_adguard_status,
-    get_dns_query_stats,
-    check_blocklist_status,
-    monitor_dns_clients,
-    get_adguard_protection_summary,
-    check_proxmox_node_health,
-    list_proxmox_vms,
-    check_proxmox_vm_status,
-    get_proxmox_storage_status,
-    get_proxmox_cluster_status,
-    get_proxmox_system_summary,
-    list_lxc_containers,
-    check_lxc_logs,
-    get_lxc_resource_usage,
-    check_lxc_snapshots,
-    check_lxc_network,
-    get_lxc_config,
-    update_lxc_resources,
-    create_lxc_snapshot,
-    restart_postgres_service,
-    check_homeassistant_status,
-    list_homeassistant_entities,
-    get_entity_state,
-    get_entity_history,
-    check_automation_status,
-    get_homeassistant_summary,
-    check_prometheus_targets,
-    check_prometheus_rules,
-    get_prometheus_alerts,
-    check_prometheus_tsdb,
-    get_prometheus_runtime_info,
-    get_prometheus_config_status,
-    list_docker_images,
-    prune_docker_images,
-    inspect_docker_network,
-    check_docker_volumes,
-    get_container_resource_usage,
-    check_docker_system_health,
-    update_docker_resources,
-    list_active_alerts,
-    list_alert_silences,
-    create_alert_silence,
-    delete_alert_silence,
-    check_alert_routing,
-    get_alertmanager_status,
-    add_annotation,
-    get_grafana_status,
-    list_dashboards,
-    get_dashboard,
-    create_snapshot,
-    list_datasources,
-)
+from langchain_openai import ChatOpenAI
+
 from crews.memory.incident_memory import IncidentMemory
+from crews.tools import (add_annotation, analyze_slow_queries,
+                         check_adguard_status, check_alert_routing,
+                         check_ap_health, check_automation_status,
+                         check_blocklist_status, check_container_logs,
+                         check_container_status, check_database_locks,
+                         check_database_sizes, check_device_connectivity,
+                         check_docker_system_health, check_docker_volumes,
+                         check_homeassistant_status, check_index_health,
+                         check_lxc_logs, check_lxc_network,
+                         check_lxc_snapshots, check_lxc_status,
+                         check_postgres_health, check_prometheus_rules,
+                         check_prometheus_targets, check_prometheus_tsdb,
+                         check_proxmox_node_health, check_proxmox_vm_status,
+                         check_replication_status, check_security_events,
+                         check_specific_database, check_table_bloat,
+                         check_wan_connectivity, check_zone_health,
+                         clear_postgres_connections, create_alert_silence,
+                         create_lxc_snapshot, create_snapshot,
+                         delete_alert_silence, get_adguard_protection_summary,
+                         get_alertmanager_status, get_cloudflare_analytics,
+                         get_cloudflare_status, get_container_resource_usage,
+                         get_critical_infrastructure_status, get_dashboard,
+                         get_dns_query_stats, get_entity_history,
+                         get_entity_state, get_grafana_status,
+                         get_homeassistant_summary, get_lxc_config,
+                         get_lxc_resource_usage, get_network_performance,
+                         get_prometheus_alerts, get_prometheus_config_status,
+                         get_prometheus_runtime_info,
+                         get_proxmox_cluster_status,
+                         get_proxmox_storage_status,
+                         get_proxmox_system_summary, inspect_docker_network,
+                         list_active_alerts, list_alert_silences,
+                         list_cloudflare_zones, list_dashboards,
+                         list_datasources, list_docker_images,
+                         list_homeassistant_entities, list_lxc_containers,
+                         list_proxmox_vms, list_tailscale_devices,
+                         list_unifi_devices, monitor_database_connections,
+                         monitor_dns_clients, monitor_dns_records,
+                         monitor_network_clients, monitor_switch_ports,
+                         monitor_vacuum_status, monitor_vpn_health,
+                         prune_docker_images, query_database_performance,
+                         query_prometheus, restart_container, restart_lxc,
+                         restart_postgres_service, send_telegram,
+                         update_docker_resources, update_lxc_resources,
+                         vacuum_postgres_table)
 
 # Load environment variables
 load_dotenv()
@@ -107,7 +65,7 @@ llm = ChatOpenAI(
     api_key=os.getenv("OPENAI_API_KEY"),
     temperature=0.1,
     max_tokens=500,  # Limit response length to reduce costs
-    model_kwargs={"top_p": 0.9}  # Reduce sampling diversity
+    model_kwargs={"top_p": 0.9},  # Reduce sampling diversity
 )
 
 # Initialize incident memory for learning from past incidents
@@ -269,9 +227,17 @@ def handle_alert(alert_data: dict):
     """
     start_time = time.time()
 
-    alert_name = alert_data.get('alerts', [{}])[0].get('labels', {}).get('alertname', 'Unknown')
-    alert_desc = alert_data.get('alerts', [{}])[0].get('annotations', {}).get('description', 'No description')
-    severity = alert_data.get('alerts', [{}])[0].get('labels', {}).get('severity', 'unknown')
+    alert_name = (
+        alert_data.get("alerts", [{}])[0].get("labels", {}).get("alertname", "Unknown")
+    )
+    alert_desc = (
+        alert_data.get("alerts", [{}])[0]
+        .get("annotations", {})
+        .get("description", "No description")
+    )
+    severity = (
+        alert_data.get("alerts", [{}])[0].get("labels", {}).get("severity", "unknown")
+    )
 
     # Retrieve similar past incidents for learning
     historical_context = ""
@@ -280,11 +246,15 @@ def handle_alert(alert_data: dict):
             similar_incidents = incident_memory.find_similar_incidents(
                 query_text=f"{alert_name}: {alert_desc}",
                 limit=1,  # Reduced from 3 to 1 to save tokens
-                severity_filter=severity if severity != 'unknown' else None
+                severity_filter=severity if severity != "unknown" else None,
             )
             if similar_incidents:
-                historical_context = incident_memory.format_historical_context(similar_incidents)
-                print(f"✓ Found {len(similar_incidents)} similar past incident for context")
+                historical_context = incident_memory.format_historical_context(
+                    similar_incidents
+                )
+                print(
+                    f"✓ Found {len(similar_incidents)} similar past incident for context"
+                )
         except Exception as e:
             print(f"⚠ Warning: Could not retrieve historical context: {e}")
 
@@ -299,7 +269,7 @@ Desc: {alert_desc}
 
 Return: validity, systems, severity, observations""",
         agent=monitor_agent,
-        expected_output="Detection report: validity, systems, severity"
+        expected_output="Detection report: validity, systems, severity",
     )
 
     # Task 2: Root Cause Analysis
@@ -314,7 +284,7 @@ Return: validity, systems, severity, observations""",
 Return: cause, timeline, fix recommendation""",
         agent=analyst_agent,
         expected_output="Root cause with fix recommendation",
-        context=[detection_task]
+        context=[detection_task],
     )
 
     # Task 3: Auto-Remediation
@@ -327,7 +297,7 @@ Return: cause, timeline, fix recommendation""",
 Return: action, status, verification""",
         agent=healer_agent,
         expected_output="Remediation status",
-        context=[analysis_task]
+        context=[analysis_task],
     )
 
     # Task 4: Human Communication
@@ -342,7 +312,7 @@ Status: [resolved/escalated]
 Keep under 300 chars.""",
         agent=communicator_agent,
         expected_output="Telegram sent",
-        context=[detection_task, analysis_task, healing_task]
+        context=[detection_task, analysis_task, healing_task],
     )
 
     # Create and run the crew
@@ -350,7 +320,7 @@ Keep under 300 chars.""",
         agents=[monitor_agent, analyst_agent, healer_agent, communicator_agent],
         tasks=[detection_task, analysis_task, healing_task, communication_task],
         process=Process.sequential,
-        verbose=False  # Reduced verbosity to minimize token usage
+        verbose=False,  # Reduced verbosity to minimize token usage
     )
 
     result = crew.kickoff()
@@ -364,9 +334,17 @@ Keep under 300 chars.""",
             result_str = str(result).lower()
 
             # Determine resolution status
-            if "resolved" in result_str or "success" in result_str or "fixed" in result_str:
+            if (
+                "resolved" in result_str
+                or "success" in result_str
+                or "fixed" in result_str
+            ):
                 resolution_status = "resolved"
-            elif "escalat" in result_str or "manual" in result_str or "fail" in result_str:
+            elif (
+                "escalat" in result_str
+                or "manual" in result_str
+                or "fail" in result_str
+            ):
                 resolution_status = "escalated"
             else:
                 resolution_status = "attempted"
@@ -386,16 +364,18 @@ Keep under 300 chars.""",
                 resolution_time_seconds=resolution_time,
                 metadata={
                     "timestamp": datetime.utcnow().isoformat(),
-                    "crew_result": result_str[:500]
-                }
+                    "crew_result": result_str[:500],
+                },
             )
             print(f"✓ Incident stored in memory: {incident_id}")
 
             # Log statistics
             stats = incident_memory.get_incident_stats()
-            print(f"📊 Memory Stats: {stats['total_incidents']} incidents, "
-                  f"{stats['success_rate']:.1f}% success rate, "
-                  f"avg resolution: {stats['avg_resolution_time']}s")
+            print(
+                f"📊 Memory Stats: {stats['total_incidents']} incidents, "
+                f"{stats['success_rate']:.1f}% success rate, "
+                f"avg resolution: {stats['avg_resolution_time']}s"
+            )
         except Exception as e:
             print(f"⚠ Warning: Could not store incident in memory: {e}")
 
@@ -416,30 +396,40 @@ def scheduled_health_check():
 
 Return: status (OK or issues found)""",
         agent=monitor_agent,
-        expected_output="Health status"
+        expected_output="Health status",
     )
 
     crew = Crew(
         agents=[monitor_agent],
         tasks=[proactive_task],
         process=Process.sequential,
-        verbose=False  # Less verbose for scheduled checks
+        verbose=False,  # Less verbose for scheduled checks
     )
 
     result = crew.kickoff()
 
     # Extract text from CrewOutput object
-    result_text = str(result.raw) if hasattr(result, 'raw') else str(result)
+    result_text = str(result.raw) if hasattr(result, "raw") else str(result)
 
     # If issues found, trigger full incident response
-    if "issue" in result_text.lower() or "problem" in result_text.lower() or "down" in result_text.lower():
+    if (
+        "issue" in result_text.lower()
+        or "problem" in result_text.lower()
+        or "down" in result_text.lower()
+    ):
         print(f"Proactive check found issues: {result_text}")
         # Trigger full alert handling
-        handle_alert({
-            'alerts': [{
-                'labels': {'alertname': 'ProactiveHealthCheckFailed'},
-                'annotations': {'description': f'Scheduled health check detected: {result_text}'}
-            }]
-        })
+        handle_alert(
+            {
+                "alerts": [
+                    {
+                        "labels": {"alertname": "ProactiveHealthCheckFailed"},
+                        "annotations": {
+                            "description": f"Scheduled health check detected: {result_text}"
+                        },
+                    }
+                ]
+            }
+        )
 
     return result_text

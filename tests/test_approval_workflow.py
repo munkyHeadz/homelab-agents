@@ -1,11 +1,14 @@
 """Unit tests for approval workflow."""
 
-import pytest
-import os
 import json
+import os
 import time
-from unittest.mock import Mock, patch, MagicMock
-from crews.approval import ApprovalManager, get_approval_manager, CRITICAL_SERVICES
+from unittest.mock import MagicMock, Mock, patch
+
+import pytest
+
+from crews.approval import (CRITICAL_SERVICES, ApprovalManager,
+                            get_approval_manager)
 
 
 @pytest.mark.unit

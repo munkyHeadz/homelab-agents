@@ -1,24 +1,26 @@
 """PostgreSQL database monitoring tools for health and performance tracking."""
 
 import os
+from datetime import datetime, timedelta
+from typing import Optional
+
 import psycopg
 from crewai.tools import tool
 from dotenv import load_dotenv
-from typing import Optional
-from datetime import datetime, timedelta
+
 from crews.approval import get_approval_manager
 
 # Load environment variables
 load_dotenv()
 
 # PostgreSQL configuration
-POSTGRES_HOST = os.getenv('POSTGRES_HOST', '192.168.1.50')
-POSTGRES_PORT = int(os.getenv('POSTGRES_PORT', 5432))
-POSTGRES_USER_AGENT = os.getenv('POSTGRES_USER_AGENT', 'agent_user')
-POSTGRES_PASSWORD_AGENT = os.getenv('POSTGRES_PASSWORD_AGENT')
+POSTGRES_HOST = os.getenv("POSTGRES_HOST", "192.168.1.50")
+POSTGRES_PORT = int(os.getenv("POSTGRES_PORT", 5432))
+POSTGRES_USER_AGENT = os.getenv("POSTGRES_USER_AGENT", "agent_user")
+POSTGRES_PASSWORD_AGENT = os.getenv("POSTGRES_PASSWORD_AGENT")
 
 
-def _get_postgres_connection(database: str = 'postgres'):
+def _get_postgres_connection(database: str = "postgres"):
     """
     Create PostgreSQL database connection.
 
@@ -34,7 +36,7 @@ def _get_postgres_connection(database: str = 'postgres'):
         user=POSTGRES_USER_AGENT,
         password=POSTGRES_PASSWORD_AGENT,
         dbname=database,
-        connect_timeout=10
+        connect_timeout=10,
     )
 
 
@@ -53,23 +55,25 @@ def check_postgres_health() -> str:
         cur = conn.cursor()
 
         # Get version
-        cur.execute('SELECT version();')
+        cur.execute("SELECT version();")
         version = cur.fetchone()[0]
-        pg_version = version.split(',')[0]
+        pg_version = version.split(",")[0]
 
         # Get uptime
         cur.execute("SELECT NOW() - pg_postmaster_start_time() as uptime;")
         uptime = cur.fetchone()[0]
-        uptime_str = str(uptime).split('.')[0]  # Remove microseconds
+        uptime_str = str(uptime).split(".")[0]  # Remove microseconds
 
         # Get connection stats
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 count(*) as total_connections,
                 count(*) FILTER (WHERE state = 'active') as active_connections,
                 count(*) FILTER (WHERE state = 'idle') as idle_connections
             FROM pg_stat_activity;
-        """)
+        """
+        )
         total_conn, active_conn, idle_conn = cur.fetchone()
 
         # Get max connections setting
@@ -84,11 +88,13 @@ def check_postgres_health() -> str:
         db_count = cur.fetchone()[0]
 
         # Get cache hit ratio
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 round(sum(blks_hit) * 100.0 / nullif(sum(blks_hit) + sum(blks_read), 0), 2) as cache_hit_ratio
             FROM pg_stat_database;
-        """)
+        """
+        )
         cache_hit_ratio = cur.fetchone()[0] or 0
 
         cur.close()
@@ -145,7 +151,8 @@ def query_database_performance(show_queries: bool = False) -> str:
         cur = conn.cursor()
 
         # Get long-running queries (>30 seconds)
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 pid,
                 NOW() - query_start AS duration,
@@ -157,35 +164,42 @@ def query_database_performance(show_queries: bool = False) -> str:
               AND NOW() - query_start > interval '30 seconds'
             ORDER BY duration DESC
             LIMIT 5;
-        """)
+        """
+        )
         long_queries = cur.fetchall()
 
         # Get blocking locks
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 count(*) as blocked_queries
             FROM pg_stat_activity
             WHERE wait_event_type = 'Lock';
-        """)
+        """
+        )
         blocked_count = cur.fetchone()[0]
 
         # Get transaction age
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 max(NOW() - xact_start) as max_transaction_age
             FROM pg_stat_activity
             WHERE state IN ('idle in transaction', 'active');
-        """)
+        """
+        )
         max_tx_age = cur.fetchone()[0]
 
         # Get table bloat (approximate)
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 count(*) as total_tables,
                 pg_size_pretty(sum(pg_total_relation_size(schemaname||'.'||tablename))) as total_size
             FROM pg_tables
             WHERE schemaname NOT IN ('pg_catalog', 'information_schema');
-        """)
+        """
+        )
         table_count, total_size = cur.fetchone()
 
         # Get active queries if requested
@@ -193,7 +207,7 @@ def query_database_performance(show_queries: bool = False) -> str:
         if show_queries and long_queries:
             active_queries_str = "\n\nLong-Running Queries:"
             for pid, duration, state, query in long_queries:
-                duration_str = str(duration).split('.')[0]
+                duration_str = str(duration).split(".")[0]
                 active_queries_str += f"\n  PID {pid} ({duration_str}): {query}..."
 
         cur.close()
@@ -243,7 +257,8 @@ def check_database_sizes() -> str:
         cur = conn.cursor()
 
         # Get all database sizes
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 datname,
                 pg_size_pretty(pg_database_size(datname)) as size,
@@ -251,7 +266,8 @@ def check_database_sizes() -> str:
             FROM pg_database
             WHERE datistemplate = false
             ORDER BY size_bytes DESC;
-        """)
+        """
+        )
         databases = cur.fetchall()
 
         # Get total size
@@ -259,7 +275,8 @@ def check_database_sizes() -> str:
         total_size = databases[0][1] if databases else "0 bytes"
 
         # Get largest tables across all databases
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 schemaname,
                 tablename,
@@ -269,7 +286,8 @@ def check_database_sizes() -> str:
             WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
             ORDER BY size_bytes DESC
             LIMIT 5;
-        """)
+        """
+        )
         largest_tables = cur.fetchall()
 
         cur.close()
@@ -325,7 +343,8 @@ def monitor_database_connections(database: Optional[str] = None) -> str:
         db_filter = f"AND datname = '{database}'" if database else ""
 
         # Get connection breakdown by database and state
-        cur.execute(f"""
+        cur.execute(
+            f"""
             SELECT
                 datname,
                 state,
@@ -334,11 +353,13 @@ def monitor_database_connections(database: Optional[str] = None) -> str:
             WHERE datname IS NOT NULL {db_filter}
             GROUP BY datname, state
             ORDER BY datname, connection_count DESC;
-        """)
+        """
+        )
         conn_breakdown = cur.fetchall()
 
         # Get connections by client
-        cur.execute(f"""
+        cur.execute(
+            f"""
             SELECT
                 client_addr,
                 count(*) as connections,
@@ -348,18 +369,21 @@ def monitor_database_connections(database: Optional[str] = None) -> str:
             GROUP BY client_addr
             ORDER BY connections DESC
             LIMIT 10;
-        """)
+        """
+        )
         conn_by_client = cur.fetchall()
 
         # Get idle connection duration
-        cur.execute(f"""
+        cur.execute(
+            f"""
             SELECT
                 count(*) as idle_connections,
                 max(NOW() - state_change) as max_idle_time
             FROM pg_stat_activity
             WHERE state = 'idle'
               AND datname IS NOT NULL {db_filter};
-        """)
+        """
+        )
         idle_count, max_idle = cur.fetchone()
 
         cur.close()
@@ -380,7 +404,7 @@ def monitor_database_connections(database: Optional[str] = None) -> str:
             client_addr = client if client else "local"
             client_lines.append(f"  {client_addr}: {total} total, {active} active")
 
-        max_idle_str = str(max_idle).split('.')[0] if max_idle else "0:00:00"
+        max_idle_str = str(max_idle).split(".")[0] if max_idle else "0:00:00"
 
         result = f"""
 === PostgreSQL Connection Monitor ===
@@ -432,11 +456,14 @@ def check_specific_database(database: str) -> str:
         db_size = cur.fetchone()[0]
 
         # Get connection count
-        cur.execute("""
+        cur.execute(
+            """
             SELECT count(*)
             FROM pg_stat_activity
             WHERE datname = %s;
-        """, (database,))
+        """,
+            (database,),
+        )
         conn_count = cur.fetchone()[0]
 
         cur.close()
@@ -447,15 +474,18 @@ def check_specific_database(database: str) -> str:
         cur = conn.cursor()
 
         # Get table count
-        cur.execute("""
+        cur.execute(
+            """
             SELECT count(*)
             FROM information_schema.tables
             WHERE table_schema NOT IN ('pg_catalog', 'information_schema');
-        """)
+        """
+        )
         table_count = cur.fetchone()[0]
 
         # Get largest tables in this database
-        cur.execute("""
+        cur.execute(
+            """
             SELECT
                 tablename,
                 pg_size_pretty(pg_total_relation_size(schemaname||'.'||tablename)) as size
@@ -463,7 +493,8 @@ def check_specific_database(database: str) -> str:
             WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
             ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC
             LIMIT 5;
-        """)
+        """
+        )
         top_tables = cur.fetchall()
 
         # Get row counts for top tables
@@ -497,6 +528,7 @@ Largest Tables:
     except Exception as e:
         return f"✗ Error checking database '{database}': {str(e)}"
 
+
 @tool("Check Replication Status")
 def check_replication_status() -> str:
     """
@@ -526,7 +558,8 @@ def check_replication_status() -> str:
             output.append("")
 
             # Get replica lag
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT 
                     CASE WHEN pg_last_wal_receive_lsn() = pg_last_wal_replay_lsn()
                         THEN 0
@@ -535,7 +568,8 @@ def check_replication_status() -> str:
                     pg_last_wal_receive_lsn(),
                     pg_last_wal_replay_lsn(),
                     pg_last_xact_replay_timestamp();
-            """)
+            """
+            )
 
             lag_info = cursor.fetchone()
             if lag_info:
@@ -560,7 +594,8 @@ def check_replication_status() -> str:
             output.append("")
 
             # Check for connected replicas
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT 
                     client_addr,
                     state,
@@ -571,7 +606,8 @@ def check_replication_status() -> str:
                     write_lag,
                     flush_lag
                 FROM pg_stat_replication;
-            """)
+            """
+            )
 
             replicas = cursor.fetchall()
 
@@ -580,7 +616,16 @@ def check_replication_status() -> str:
                 output.append("")
 
                 for idx, replica in enumerate(replicas, 1):
-                    client_addr, state, sync_state, conn_age, state_age, replay_lag, write_lag, flush_lag = replica
+                    (
+                        client_addr,
+                        state,
+                        sync_state,
+                        conn_age,
+                        state_age,
+                        replay_lag,
+                        write_lag,
+                        flush_lag,
+                    ) = replica
 
                     output.append(f"Replica {idx}:")
                     output.append(f"  Address: {client_addr}")
@@ -632,7 +677,8 @@ def check_table_bloat(min_bloat_mb: int = 100) -> str:
         cursor = conn.cursor()
 
         # Query to estimate table bloat
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT
                 schemaname,
                 tablename,
@@ -654,7 +700,8 @@ def check_table_bloat(min_bloat_mb: int = 100) -> str:
             WHERE pg_tables.schemaname NOT IN ('pg_catalog', 'information_schema')
             ORDER BY pg_total_relation_size(schemaname||'.'||tablename) DESC
             LIMIT 20;
-        """)
+        """
+        )
 
         tables = cursor.fetchall()
 
@@ -667,29 +714,41 @@ def check_table_bloat(min_bloat_mb: int = 100) -> str:
             "=== Table Bloat Analysis ===",
             f"Analyzing top 20 largest tables",
             f"Bloat threshold: {min_bloat_mb}MB",
-            ""
+            "",
         ]
 
         bloated_tables = []
         healthy_tables = 0
 
         for table in tables:
-            schema, tablename, total_size, size_bytes, bloat_level, live_tup, dead_tup, last_vacuum, last_autovacuum = table
+            (
+                schema,
+                tablename,
+                total_size,
+                size_bytes,
+                bloat_level,
+                live_tup,
+                dead_tup,
+                last_vacuum,
+                last_autovacuum,
+            ) = table
 
             # Convert size threshold to bytes
             min_size_bytes = min_bloat_mb * 1024 * 1024
 
-            if bloat_level in ['High', 'Medium'] and size_bytes > min_size_bytes:
-                bloated_tables.append({
-                    'schema': schema,
-                    'table': tablename,
-                    'size': total_size,
-                    'bloat': bloat_level,
-                    'live': live_tup,
-                    'dead': dead_tup,
-                    'last_vacuum': last_vacuum,
-                    'last_autovacuum': last_autovacuum
-                })
+            if bloat_level in ["High", "Medium"] and size_bytes > min_size_bytes:
+                bloated_tables.append(
+                    {
+                        "schema": schema,
+                        "table": tablename,
+                        "size": total_size,
+                        "bloat": bloat_level,
+                        "live": live_tup,
+                        "dead": dead_tup,
+                        "last_vacuum": last_vacuum,
+                        "last_autovacuum": last_autovacuum,
+                    }
+                )
             else:
                 healthy_tables += 1
 
@@ -704,15 +763,19 @@ def check_table_bloat(min_bloat_mb: int = 100) -> str:
                 output.append(f"  Live Tuples: {table['live']:,}")
                 output.append(f"  Dead Tuples: {table['dead']:,}")
 
-                if table['last_vacuum']:
+                if table["last_vacuum"]:
                     output.append(f"  Last Manual VACUUM: {table['last_vacuum']}")
-                if table['last_autovacuum']:
+                if table["last_autovacuum"]:
                     output.append(f"  Last Auto VACUUM: {table['last_autovacuum']}")
 
-                output.append(f"  💡 Consider: VACUUM FULL {table['schema']}.{table['table']};")
+                output.append(
+                    f"  💡 Consider: VACUUM FULL {table['schema']}.{table['table']};"
+                )
                 output.append("")
         else:
-            output.append(f"✓ No significant bloat detected (threshold: {min_bloat_mb}MB)")
+            output.append(
+                f"✓ No significant bloat detected (threshold: {min_bloat_mb}MB)"
+            )
 
         if healthy_tables > 0:
             output.append(f"{healthy_tables} tables are healthy")
@@ -753,11 +816,13 @@ def analyze_slow_queries(min_duration_ms: int = 1000, limit: int = 10) -> str:
         cursor = conn.cursor()
 
         # Check if pg_stat_statements is available
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT EXISTS (
                 SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements'
             );
-        """)
+        """
+        )
 
         extension_exists = cursor.fetchone()[0]
 
@@ -776,7 +841,8 @@ This extension is required for detailed query performance analysis.
 """
 
         # Get slow queries
-        cursor.execute(f"""
+        cursor.execute(
+            f"""
             SELECT
                 query,
                 calls,
@@ -790,7 +856,8 @@ This extension is required for detailed query performance analysis.
                 AND query NOT LIKE '%pg_stat_statements%'
             ORDER BY mean_exec_time DESC
             LIMIT {limit};
-        """)
+        """
+        )
 
         slow_queries = cursor.fetchall()
 
@@ -809,11 +876,13 @@ Your database queries are performing well!
             "=== Slow Query Analysis ===",
             f"Threshold: {min_duration_ms}ms",
             f"Top {len(slow_queries)} slowest queries:",
-            ""
+            "",
         ]
 
         for idx, query_stat in enumerate(slow_queries, 1):
-            query, calls, total_time, mean_time, max_time, stddev_time, rows = query_stat
+            query, calls, total_time, mean_time, max_time, stddev_time, rows = (
+                query_stat
+            )
 
             # Truncate long queries
             display_query = query[:200] + "..." if len(query) > 200 else query
@@ -828,7 +897,9 @@ Your database queries are performing well!
 
             # Add optimization hints
             if mean_time > 5000:
-                output.append("  ⚠️ CRITICAL: Consider major optimization or query rewrite")
+                output.append(
+                    "  ⚠️ CRITICAL: Consider major optimization or query rewrite"
+                )
             elif mean_time > 2000:
                 output.append("  ⚠️ HIGH: Review indexes and query plan")
             else:
@@ -836,7 +907,9 @@ Your database queries are performing well!
 
             output.append("")
 
-        output.append("💡 Use EXPLAIN ANALYZE on these queries for detailed execution plans")
+        output.append(
+            "💡 Use EXPLAIN ANALYZE on these queries for detailed execution plans"
+        )
 
         cursor.close()
         conn.close()
@@ -870,7 +943,8 @@ def check_index_health() -> str:
         output = ["=== Index Health Analysis ===", ""]
 
         # Get unused indexes
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT
                 schemaname,
                 tablename,
@@ -885,7 +959,8 @@ def check_index_health() -> str:
                 AND indexrelname NOT LIKE '%_pkey'
             ORDER BY pg_relation_size(indexrelid) DESC
             LIMIT 10;
-        """)
+        """
+        )
 
         unused_indexes = cursor.fetchall()
 
@@ -911,7 +986,8 @@ def check_index_health() -> str:
             output.append("")
 
         # Get most used indexes
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT
                 schemaname,
                 tablename,
@@ -922,7 +998,8 @@ def check_index_health() -> str:
             WHERE schemaname NOT IN ('pg_catalog', 'information_schema')
             ORDER BY idx_scan DESC
             LIMIT 10;
-        """)
+        """
+        )
 
         used_indexes = cursor.fetchall()
 
@@ -939,7 +1016,8 @@ def check_index_health() -> str:
                 output.append("")
 
         # Check for tables with sequential scans but no index scans
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT
                 schemaname,
                 tablename,
@@ -953,7 +1031,8 @@ def check_index_health() -> str:
                 AND schemaname NOT IN ('pg_catalog', 'information_schema')
             ORDER BY seq_scan DESC
             LIMIT 5;
-        """)
+        """
+        )
 
         seq_scan_tables = cursor.fetchall()
 
@@ -1003,11 +1082,13 @@ def monitor_vacuum_status() -> str:
         output = ["=== VACUUM Status ===", ""]
 
         # Check autovacuum configuration
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT name, setting, unit
             FROM pg_settings
             WHERE name IN ('autovacuum', 'autovacuum_max_workers', 'autovacuum_naptime');
-        """)
+        """
+        )
 
         autovacuum_config = cursor.fetchall()
 
@@ -1019,7 +1100,8 @@ def monitor_vacuum_status() -> str:
         output.append("")
 
         # Check current vacuum operations
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT
                 datname,
                 usename,
@@ -1030,7 +1112,8 @@ def monitor_vacuum_status() -> str:
             WHERE query LIKE '%VACUUM%' OR query LIKE '%ANALYZE%'
                 AND query NOT LIKE '%pg_stat_activity%'
                 AND state != 'idle';
-        """)
+        """
+        )
 
         active_vacuums = cursor.fetchall()
 
@@ -1052,7 +1135,8 @@ def monitor_vacuum_status() -> str:
             output.append("")
 
         # Get tables that need vacuuming
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT
                 schemaname,
                 tablename,
@@ -1067,7 +1151,8 @@ def monitor_vacuum_status() -> str:
             WHERE n_dead_tup > 1000
             ORDER BY n_dead_tup DESC
             LIMIT 10;
-        """)
+        """
+        )
 
         needs_vacuum = cursor.fetchall()
 
@@ -1076,7 +1161,17 @@ def monitor_vacuum_status() -> str:
             output.append("")
 
             for table in needs_vacuum:
-                schema, tablename, dead, live, pct, last_vac, last_autovac, last_analyze, last_autoanalyze = table
+                (
+                    schema,
+                    tablename,
+                    dead,
+                    live,
+                    pct,
+                    last_vac,
+                    last_autovac,
+                    last_analyze,
+                    last_autoanalyze,
+                ) = table
 
                 output.append(f"• {schema}.{tablename}")
                 output.append(f"  Dead Tuples: {dead:,} ({pct:.1f}% of live tuples)")
@@ -1088,11 +1183,15 @@ def monitor_vacuum_status() -> str:
                     output.append(f"  Last Auto VACUUM: {last_autovac}")
 
                 if pct > 20:
-                    output.append(f"  ⚠️ Consider manual VACUUM: VACUUM ANALYZE {schema}.{tablename};")
+                    output.append(
+                        f"  ⚠️ Consider manual VACUUM: VACUUM ANALYZE {schema}.{tablename};"
+                    )
 
                 output.append("")
         else:
-            output.append("✓ All tables are well-maintained (no significant dead tuples)")
+            output.append(
+                "✓ All tables are well-maintained (no significant dead tuples)"
+            )
 
         cursor.close()
         conn.close()
@@ -1126,7 +1225,8 @@ def check_database_locks() -> str:
         output = ["=== Database Locks Analysis ===", ""]
 
         # Get blocking locks
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT
                 blocked_locks.pid AS blocked_pid,
                 blocked_activity.usename AS blocked_user,
@@ -1153,19 +1253,40 @@ def check_database_locks() -> str:
                 AND blocking_locks.pid != blocked_locks.pid
             JOIN pg_catalog.pg_stat_activity blocking_activity ON blocking_activity.pid = blocking_locks.pid
             WHERE NOT blocked_locks.granted;
-        """)
+        """
+        )
 
         blocking_locks = cursor.fetchall()
 
         if blocking_locks:
-            output.append(f"🔴 BLOCKING DETECTED: {len(blocking_locks)} blocked queries")
+            output.append(
+                f"🔴 BLOCKING DETECTED: {len(blocking_locks)} blocked queries"
+            )
             output.append("")
 
             for idx, lock in enumerate(blocking_locks, 1):
-                blocked_pid, blocked_user, blocking_pid, blocking_user, blocked_query, blocking_query, locktype, blocked_mode, blocking_mode = lock
+                (
+                    blocked_pid,
+                    blocked_user,
+                    blocking_pid,
+                    blocking_user,
+                    blocked_query,
+                    blocking_query,
+                    locktype,
+                    blocked_mode,
+                    blocking_mode,
+                ) = lock
 
-                blocked_display = blocked_query[:150] + "..." if len(blocked_query) > 150 else blocked_query
-                blocking_display = blocking_query[:150] + "..." if len(blocking_query) > 150 else blocking_query
+                blocked_display = (
+                    blocked_query[:150] + "..."
+                    if len(blocked_query) > 150
+                    else blocked_query
+                )
+                blocking_display = (
+                    blocking_query[:150] + "..."
+                    if len(blocking_query) > 150
+                    else blocking_query
+                )
 
                 output.append(f"Lock #{idx}:")
                 output.append(f"  Blocked PID: {blocked_pid} (user: {blocked_user})")
@@ -1176,14 +1297,17 @@ def check_database_locks() -> str:
                 output.append(f"  Blocking Query: {blocking_display}")
                 output.append(f"  Blocking Mode: {blocking_mode}")
                 output.append("")
-                output.append(f"  💡 To terminate blocking query: SELECT pg_terminate_backend({blocking_pid});")
+                output.append(
+                    f"  💡 To terminate blocking query: SELECT pg_terminate_backend({blocking_pid});"
+                )
                 output.append("")
         else:
             output.append("✓ No blocking locks detected")
             output.append("")
 
         # Get lock summary
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT
                 locktype,
                 mode,
@@ -1193,7 +1317,8 @@ def check_database_locks() -> str:
             GROUP BY locktype, mode
             ORDER BY lock_count DESC
             LIMIT 10;
-        """)
+        """
+        )
 
         lock_summary = cursor.fetchall()
 
@@ -1205,7 +1330,8 @@ def check_database_locks() -> str:
             output.append("")
 
         # Get long-running transactions
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT
                 pid,
                 usename,
@@ -1218,7 +1344,8 @@ def check_database_locks() -> str:
                 AND EXTRACT(EPOCH FROM (now() - xact_start)) > 60
             ORDER BY xact_start
             LIMIT 5;
-        """)
+        """
+        )
 
         long_txns = cursor.fetchall()
 
@@ -1248,7 +1375,9 @@ def check_database_locks() -> str:
 
 
 @tool("Vacuum PostgreSQL Table")
-def vacuum_postgres_table(database: str, table: str, full: bool = False, dry_run: bool = False) -> str:
+def vacuum_postgres_table(
+    database: str, table: str, full: bool = False, dry_run: bool = False
+) -> str:
     """
     Run VACUUM on a PostgreSQL table to reclaim space and update statistics.
 
@@ -1288,13 +1417,19 @@ def vacuum_postgres_table(database: str, table: str, full: bool = False, dry_run
         # Check if critical database or VACUUM FULL and request approval
         approval_manager = get_approval_manager()
         if approval_manager.is_critical_service("databases", database) or full:
-            details = f"Database: {database}\nTable: {table}\nOperation: {vacuum_type}\n"
-            details += "⚠️ Exclusive lock required - blocks table access" if full else "Non-blocking operation"
+            details = (
+                f"Database: {database}\nTable: {table}\nOperation: {vacuum_type}\n"
+            )
+            details += (
+                "⚠️ Exclusive lock required - blocks table access"
+                if full
+                else "Non-blocking operation"
+            )
 
             approval_result = approval_manager.send_approval_request(
                 action=f"{vacuum_type} on {database}.{table}",
                 details=details,
-                severity="critical" if full else "warning"
+                severity="critical" if full else "warning",
             )
 
             if not approval_result["approved"]:
@@ -1307,19 +1442,22 @@ def vacuum_postgres_table(database: str, table: str, full: bool = False, dry_run
             dbname=database,
             user=user,
             password=password,
-            autocommit=True  # VACUUM requires autocommit
+            autocommit=True,  # VACUUM requires autocommit
         )
 
         cursor = conn.cursor()
 
         # Check if table exists
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT EXISTS (
                 SELECT FROM information_schema.tables
                 WHERE table_schema = 'public'
                 AND table_name = %s
             )
-        """, (table,))
+        """,
+            (table,),
+        )
 
         if not cursor.fetchone()[0]:
             conn.close()
@@ -1331,6 +1469,7 @@ def vacuum_postgres_table(database: str, table: str, full: bool = False, dry_run
 
         # Run VACUUM
         import time
+
         start_time = time.time()
 
         if full:
@@ -1363,7 +1502,9 @@ def vacuum_postgres_table(database: str, table: str, full: bool = False, dry_run
 
 
 @tool("Clear PostgreSQL Connections")
-def clear_postgres_connections(database: str, force_user: str = None, dry_run: bool = False) -> str:
+def clear_postgres_connections(
+    database: str, force_user: str = None, dry_run: bool = False
+) -> str:
     """
     Terminate active connections to a PostgreSQL database.
 
@@ -1400,7 +1541,7 @@ def clear_postgres_connections(database: str, force_user: str = None, dry_run: b
             dbname="postgres",
             user=user,
             password=password,
-            autocommit=True
+            autocommit=True,
         )
 
         cursor = conn.cursor()
@@ -1428,7 +1569,9 @@ def clear_postgres_connections(database: str, force_user: str = None, dry_run: b
             return f"ℹ️ No active connections found to database '{database}'"
 
         if dry_run:
-            output = [f"🔍 DRY-RUN: Would terminate {len(connections)} connection(s) to '{database}'\n"]
+            output = [
+                f"🔍 DRY-RUN: Would terminate {len(connections)} connection(s) to '{database}'\n"
+            ]
             output.append("**Connections to be terminated**:")
             for conn_info in connections:
                 pid, username, app, state, query_start, state_change = conn_info
@@ -1439,7 +1582,9 @@ def clear_postgres_connections(database: str, force_user: str = None, dry_run: b
         # Check if critical database and request approval
         approval_manager = get_approval_manager()
         if approval_manager.is_critical_service("databases", database):
-            details = f"Database: {database}\nConnections to terminate: {len(connections)}\n"
+            details = (
+                f"Database: {database}\nConnections to terminate: {len(connections)}\n"
+            )
             if force_user:
                 details += f"User filter: {force_user}\n"
             details += "\nConnections:\n"
@@ -1450,7 +1595,7 @@ def clear_postgres_connections(database: str, force_user: str = None, dry_run: b
             approval_result = approval_manager.send_approval_request(
                 action=f"Terminate {len(connections)} connection(s) to {database}",
                 details=details,
-                severity="critical"
+                severity="critical",
             )
 
             if not approval_result["approved"]:
@@ -1470,7 +1615,9 @@ def clear_postgres_connections(database: str, force_user: str = None, dry_run: b
 
         conn.close()
 
-        output = [f"✅ Terminated {len(terminated)} connection(s) to database '{database}'\n"]
+        output = [
+            f"✅ Terminated {len(terminated)} connection(s) to database '{database}'\n"
+        ]
         output.append(f"**PIDs Terminated**: {', '.join(map(str, terminated))}")
         if force_user:
             output.append(f"**User Filter**: {force_user}")

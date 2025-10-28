@@ -5,10 +5,11 @@ Tests all bot functionality including commands, authorization, and agent integra
 """
 
 import asyncio
-import sys
 import os
+import sys
+from typing import Any, Dict
+
 import requests
-from typing import Dict, Any
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -53,25 +54,25 @@ class TelegramBotTests:
 
             if resp.status_code == 200:
                 data = resp.json()
-                if data.get('ok'):
-                    bot_info = data.get('result', {})
-                    bot_username = bot_info.get('username', 'Unknown')
-                    bot_id = bot_info.get('id', 'Unknown')
-                    can_read_messages = bot_info.get('can_read_all_group_messages', False)
-
-                    self.test(
-                        "Bot Token Valid",
-                        True,
-                        f"Bot: @{bot_username} (ID: {bot_id})"
+                if data.get("ok"):
+                    bot_info = data.get("result", {})
+                    bot_username = bot_info.get("username", "Unknown")
+                    bot_id = bot_info.get("id", "Unknown")
+                    can_read_messages = bot_info.get(
+                        "can_read_all_group_messages", False
                     )
 
                     self.test(
-                        "Bot Username",
-                        bool(bot_username),
-                        f"Username: @{bot_username}"
+                        "Bot Token Valid", True, f"Bot: @{bot_username} (ID: {bot_id})"
+                    )
+
+                    self.test(
+                        "Bot Username", bool(bot_username), f"Username: @{bot_username}"
                     )
                 else:
-                    self.test("Bot Token Valid", False, "Token rejected by Telegram API")
+                    self.test(
+                        "Bot Token Valid", False, "Token rejected by Telegram API"
+                    )
             else:
                 self.test("Bot Token Valid", False, f"HTTP {resp.status_code}")
         except Exception as e:
@@ -87,26 +88,26 @@ class TelegramBotTests:
 
             if resp.status_code == 200:
                 data = resp.json()
-                if data.get('ok'):
-                    webhook_info = data.get('result', {})
-                    webhook_url = webhook_info.get('url', '')
-                    has_custom_cert = webhook_info.get('has_custom_certificate', False)
-                    pending_updates = webhook_info.get('pending_update_count', 0)
+                if data.get("ok"):
+                    webhook_info = data.get("result", {})
+                    webhook_url = webhook_info.get("url", "")
+                    has_custom_cert = webhook_info.get("has_custom_certificate", False)
+                    pending_updates = webhook_info.get("pending_update_count", 0)
 
                     # For polling bots, webhook should be empty
-                    is_polling = webhook_url == ''
+                    is_polling = webhook_url == ""
 
                     self.test(
                         "Bot Polling Mode",
                         is_polling,
-                        f"Webhook URL: {'(none - polling mode)' if is_polling else webhook_url}"
+                        f"Webhook URL: {'(none - polling mode)' if is_polling else webhook_url}",
                     )
 
                     if pending_updates > 0:
                         self.test(
                             "Pending Updates",
                             True,
-                            f"{pending_updates} updates waiting to be processed"
+                            f"{pending_updates} updates waiting to be processed",
                         )
                 else:
                     self.test("Webhook Info", False, "Failed to get webhook info")
@@ -125,13 +126,13 @@ class TelegramBotTests:
 
             if resp.status_code == 200:
                 data = resp.json()
-                if data.get('ok'):
-                    commands = data.get('result', [])
+                if data.get("ok"):
+                    commands = data.get("result", [])
 
                     self.test(
                         "Commands Registered",
                         len(commands) >= 0,
-                        f"Found {len(commands)} registered commands"
+                        f"Found {len(commands)} registered commands",
                     )
 
                     if commands:
@@ -156,18 +157,18 @@ class TelegramBotTests:
 
             if resp.status_code == 200:
                 data = resp.json()
-                if data.get('ok'):
-                    updates = data.get('result', [])
+                if data.get("ok"):
+                    updates = data.get("result", [])
 
                     self.test(
                         "Bot Can Receive Updates",
                         True,
-                        f"API accessible, {len(updates)} recent updates"
+                        f"API accessible, {len(updates)} recent updates",
                     )
 
                     if updates:
                         latest = updates[0]
-                        update_id = latest.get('update_id')
+                        update_id = latest.get("update_id")
                         print(f"    Latest update ID: {update_id}")
                 else:
                     self.test("Bot Updates", False, "Failed to get updates")
@@ -186,20 +187,20 @@ class TelegramBotTests:
             self.test(
                 "Admin IDs Configured",
                 True,
-                f"Found {len(admin_ids_list)} authorized admin(s)"
+                f"Found {len(admin_ids_list)} authorized admin(s)",
             )
 
             for admin_id in admin_ids_list:
                 self.test(
                     f"Admin ID Format",
-                    admin_id.isdigit() or admin_id.startswith('@'),
-                    f"ID: {admin_id}"
+                    admin_id.isdigit() or admin_id.startswith("@"),
+                    f"ID: {admin_id}",
                 )
         else:
             self.test(
                 "Admin IDs Configured",
                 False,
-                "No admin IDs configured - bot won't respond to anyone!"
+                "No admin IDs configured - bot won't respond to anyone!",
             )
 
     def test_bot_service_status(self):
@@ -211,10 +212,19 @@ class TelegramBotTests:
         try:
             # Check if running in LXC 104
             result = subprocess.run(
-                ["sudo", "pct", "exec", "104", "--", "systemctl", "is-active", "homelab-telegram-bot"],
+                [
+                    "sudo",
+                    "pct",
+                    "exec",
+                    "104",
+                    "--",
+                    "systemctl",
+                    "is-active",
+                    "homelab-telegram-bot",
+                ],
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=5,
             )
 
             is_active = result.stdout.strip() == "active"
@@ -222,23 +232,33 @@ class TelegramBotTests:
             self.test(
                 "Bot Service Running",
                 is_active,
-                f"Service status: {result.stdout.strip()}"
+                f"Service status: {result.stdout.strip()}",
             )
 
             if is_active:
                 # Get service details
                 result2 = subprocess.run(
-                    ["sudo", "pct", "exec", "104", "--", "systemctl", "status", "homelab-telegram-bot", "--no-pager"],
+                    [
+                        "sudo",
+                        "pct",
+                        "exec",
+                        "104",
+                        "--",
+                        "systemctl",
+                        "status",
+                        "homelab-telegram-bot",
+                        "--no-pager",
+                    ],
                     capture_output=True,
                     text=True,
-                    timeout=5
+                    timeout=5,
                 )
 
                 # Extract PID and memory info
-                for line in result2.stdout.split('\n'):
-                    if 'Main PID' in line:
+                for line in result2.stdout.split("\n"):
+                    if "Main PID" in line:
                         print(f"    {line.strip()}")
-                    elif 'Memory:' in line:
+                    elif "Memory:" in line:
                         print(f"    {line.strip()}")
 
         except Exception as e:
@@ -253,29 +273,37 @@ class TelegramBotTests:
         try:
             # Get recent logs
             result = subprocess.run(
-                ["sudo", "pct", "exec", "104", "--", "journalctl", "-u", "homelab-telegram-bot", "-n", "20", "--no-pager"],
+                [
+                    "sudo",
+                    "pct",
+                    "exec",
+                    "104",
+                    "--",
+                    "journalctl",
+                    "-u",
+                    "homelab-telegram-bot",
+                    "-n",
+                    "20",
+                    "--no-pager",
+                ],
                 capture_output=True,
                 text=True,
-                timeout=5
+                timeout=5,
             )
 
             if result.returncode == 0:
                 logs = result.stdout
 
                 # Check for errors
-                error_count = logs.lower().count('error')
-                warning_count = logs.lower().count('warning')
+                error_count = logs.lower().count("error")
+                warning_count = logs.lower().count("warning")
 
-                self.test(
-                    "Bot Logs Accessible",
-                    True,
-                    f"Recent logs retrieved"
-                )
+                self.test("Bot Logs Accessible", True, f"Recent logs retrieved")
 
                 self.test(
                     "Bot Error Rate",
                     error_count < 5,
-                    f"Found {error_count} errors, {warning_count} warnings in recent logs"
+                    f"Found {error_count} errors, {warning_count} warnings in recent logs",
                 )
 
                 # Check for key events
@@ -283,21 +311,15 @@ class TelegramBotTests:
                     self.test(
                         "Bot Started Successfully",
                         True,
-                        "Found 'Telegram bot is running' message"
+                        "Found 'Telegram bot is running' message",
                     )
 
                 if "Infrastructure agent initialized" in logs:
-                    self.test(
-                        "Agents Initialized",
-                        True,
-                        "Infrastructure agent loaded"
-                    )
+                    self.test("Agents Initialized", True, "Infrastructure agent loaded")
 
                 if "Metrics server started" in logs:
                     self.test(
-                        "Metrics Server Started",
-                        True,
-                        "Metrics endpoint initialized"
+                        "Metrics Server Started", True, "Metrics endpoint initialized"
                     )
 
         except Exception as e:
@@ -314,25 +336,31 @@ class TelegramBotTests:
                 metrics = resp.text
 
                 # Check for Telegram-specific metrics
-                has_telegram_metrics = "telegram_messages_received_total" in metrics or "telegram_messages_sent_total" in metrics
+                has_telegram_metrics = (
+                    "telegram_messages_received_total" in metrics
+                    or "telegram_messages_sent_total" in metrics
+                )
 
                 self.test(
                     "Telegram Metrics Exposed",
                     "telegram" in metrics.lower() or "agent_health" in metrics,
-                    f"Metrics endpoint accessible ({len(metrics)} bytes)"
+                    f"Metrics endpoint accessible ({len(metrics)} bytes)",
                 )
 
                 # Check agent health
                 if "agent_health_status" in metrics:
                     # Extract health status value
-                    for line in metrics.split('\n'):
-                        if 'agent_health_status{agent_name="infrastructure_agent"}' in line:
+                    for line in metrics.split("\n"):
+                        if (
+                            'agent_health_status{agent_name="infrastructure_agent"}'
+                            in line
+                        ):
                             health_value = line.split()[-1]
                             is_healthy = health_value == "1.0"
                             self.test(
                                 "Infrastructure Agent Health",
                                 is_healthy,
-                                f"Health status: {health_value}"
+                                f"Health status: {health_value}",
                             )
                             break
             else:
@@ -347,10 +375,11 @@ class TelegramBotTests:
 
         # Read the telegram bot file
         import os
+
         bot_file = "/home/munky/homelab-agents/interfaces/telegram_bot.py"
 
         if os.path.exists(bot_file):
-            with open(bot_file, 'r') as f:
+            with open(bot_file, "r") as f:
                 code = f.read()
 
             expected_commands = [
@@ -361,7 +390,7 @@ class TelegramBotTests:
                 ("docker_command", "/docker command"),
                 ("monitor_command", "/monitor command"),
                 ("handle_message", "Natural language handler"),
-                ("error_handler", "Error handler")
+                ("error_handler", "Error handler"),
             ]
 
             for method, description in expected_commands:
@@ -369,20 +398,20 @@ class TelegramBotTests:
                 self.test(
                     f"Handler: {description}",
                     exists,
-                    f"Method '{method}' {'found' if exists else 'missing'}"
+                    f"Method '{method}' {'found' if exists else 'missing'}",
                 )
 
             # Check for agent integration
             self.test(
                 "Infrastructure Agent Integration",
                 "InfrastructureAgent" in code,
-                "Agent imported and integrated"
+                "Agent imported and integrated",
             )
 
             self.test(
                 "Monitoring Agent Integration",
                 "MonitoringAgent" in code,
-                "Monitoring agent imported"
+                "Monitoring agent imported",
             )
 
         else:
@@ -396,14 +425,14 @@ class TelegramBotTests:
         self.test(
             "Bot Token Configured",
             bool(self.bot_token and self.bot_token != "your-bot-token-here"),
-            f"Token length: {len(self.bot_token) if self.bot_token else 0}"
+            f"Token length: {len(self.bot_token) if self.bot_token else 0}",
         )
 
         # Check admin IDs
         self.test(
             "Admin IDs Configured",
             bool(self.admin_ids),
-            f"Found {len(self.admin_ids)} admin ID(s)"
+            f"Found {len(self.admin_ids)} admin ID(s)",
         )
 
         # Check environment variables are loaded
@@ -411,7 +440,7 @@ class TelegramBotTests:
         self.test(
             "Anthropic API Key Loaded",
             bool(anthropic_key and len(anthropic_key) > 20),
-            "API key present in config"
+            "API key present in config",
         )
 
     def test_send_test_message(self):
@@ -426,22 +455,19 @@ class TelegramBotTests:
 
             # Make a test request with invalid chat_id to see if endpoint responds
             # (this won't actually send a message)
-            resp = requests.post(
-                url,
-                json={"chat_id": "0", "text": "test"},
-                timeout=5
-            )
+            resp = requests.post(url, json={"chat_id": "0", "text": "test"}, timeout=5)
 
             # We expect this to fail with "Bad Request" because chat_id is invalid
             # But if we get a response, the bot token works for sending
             if resp.status_code in [400, 401]:
                 data = resp.json()
-                if not data.get('ok'):
+                if not data.get("ok"):
                     # Expected - bad chat_id
                     self.test(
                         "Bot Can Send Messages",
-                        'chat not found' in data.get('description', '').lower() or 'bad request' in data.get('description', '').lower(),
-                        "Send API endpoint accessible (tested with invalid chat_id)"
+                        "chat not found" in data.get("description", "").lower()
+                        or "bad request" in data.get("description", "").lower(),
+                        "Send API endpoint accessible (tested with invalid chat_id)",
                     )
                 else:
                     self.test("Bot Send Capability", False, "Unexpected response")
@@ -453,11 +479,12 @@ class TelegramBotTests:
 
     def run_all_tests(self):
         """Run all tests"""
-        print("\n" + "="*70)
+        print("\n" + "=" * 70)
         print("TELEGRAM BOT - COMPREHENSIVE TEST SUITE")
-        print("="*70)
+        print("=" * 70)
 
         import time
+
         start_time = time.time()
 
         # Run all tests
@@ -476,19 +503,21 @@ class TelegramBotTests:
         duration = time.time() - start_time
 
         # Print summary
-        print("\n" + "="*70)
+        print("\n" + "=" * 70)
         print("TELEGRAM BOT TEST SUMMARY")
-        print("="*70)
+        print("=" * 70)
         print(f"Total Tests: {self.passed + self.failed}")
         print(f"Passed: {self.passed} ✅")
         print(f"Failed: {self.failed} ❌")
         print(f"Success Rate: {(self.passed / (self.passed + self.failed) * 100):.1f}%")
         print(f"Duration: {duration:.2f}s")
-        print("="*70)
+        print("=" * 70)
 
         # Additional information
         print("\n📱 Telegram Bot Information:")
-        print(f"   Bot Token: {self.bot_token[:20]}...{self.bot_token[-10:] if len(self.bot_token) > 30 else ''}")
+        print(
+            f"   Bot Token: {self.bot_token[:20]}...{self.bot_token[-10:] if len(self.bot_token) > 30 else ''}"
+        )
         print(f"   Admin IDs: {', '.join(self.admin_ids)}")
         print(f"   Metrics Endpoint: http://192.168.1.102:8000/metrics")
         print("\n💡 To test the bot manually:")
@@ -497,7 +526,7 @@ class TelegramBotTests:
         print("   3. Send /start to begin")
         print("   4. Try commands: /status, /vms, /docker, /monitor, /help")
         print("   5. Send natural language: 'Check all VMs'")
-        print("="*70)
+        print("=" * 70)
 
         return self.failed == 0
 

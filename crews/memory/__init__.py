@@ -2,4 +2,4 @@
 
 from .incident_memory import IncidentMemory
 
-__all__ = ['IncidentMemory']
+__all__ = ["IncidentMemory"]

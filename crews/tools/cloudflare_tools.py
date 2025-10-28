@@ -1,10 +1,11 @@
 """Cloudflare monitoring and management tools for AI agents."""
 
 import os
+from datetime import datetime, timedelta
+from typing import Any, Dict, Optional
+
 import requests
 from crewai.tools import tool
-from typing import Optional, Dict, Any
-from datetime import datetime, timedelta
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -18,7 +19,9 @@ CLOUDFLARE_ZONE_ID = os.getenv("CLOUDFLARE_ZONE_ID", "")
 CLOUDFLARE_API_BASE = "https://api.cloudflare.com/client/v4"
 
 
-def _make_cloudflare_request(endpoint: str, method: str = "GET", data: Optional[Dict] = None) -> Dict[str, Any]:
+def _make_cloudflare_request(
+    endpoint: str, method: str = "GET", data: Optional[Dict] = None
+) -> Dict[str, Any]:
     """
     Make a request to the Cloudflare API.
 
@@ -34,15 +37,19 @@ def _make_cloudflare_request(endpoint: str, method: str = "GET", data: Optional[
         Exception: If API request fails
     """
     if not CLOUDFLARE_ENABLED:
-        raise Exception("Cloudflare integration is disabled. Set CLOUDFLARE_ENABLED=true in .env")
+        raise Exception(
+            "Cloudflare integration is disabled. Set CLOUDFLARE_ENABLED=true in .env"
+        )
 
     if not CLOUDFLARE_API_TOKEN:
-        raise Exception("Cloudflare API token not configured. Set CLOUDFLARE_API_TOKEN in .env")
+        raise Exception(
+            "Cloudflare API token not configured. Set CLOUDFLARE_API_TOKEN in .env"
+        )
 
     url = f"{CLOUDFLARE_API_BASE}/{endpoint}"
     headers = {
         "Authorization": f"Bearer {CLOUDFLARE_API_TOKEN}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
 
     try:
@@ -76,7 +83,9 @@ def _make_cloudflare_request(endpoint: str, method: str = "GET", data: Optional[
         elif e.response.status_code == 404:
             raise Exception(f"Cloudflare API endpoint not found (404): {endpoint}")
         else:
-            raise Exception(f"Cloudflare API error ({e.response.status_code}): {e.response.text}")
+            raise Exception(
+                f"Cloudflare API error ({e.response.status_code}): {e.response.text}"
+            )
 
     except requests.exceptions.Timeout:
         raise Exception("Cloudflare API request timed out after 10 seconds")
@@ -109,7 +118,9 @@ def list_cloudflare_zones() -> str:
 
         if not data.get("success"):
             errors = data.get("errors", [])
-            error_messages = ", ".join([e.get("message", "Unknown error") for e in errors])
+            error_messages = ", ".join(
+                [e.get("message", "Unknown error") for e in errors]
+            )
             return f"❌ Failed to list zones: {error_messages}"
 
         zones = data.get("result", [])
@@ -173,7 +184,9 @@ def check_zone_health(zone_name: Optional[str] = None) -> str:
 
         if not zones_data.get("success"):
             errors = zones_data.get("errors", [])
-            error_messages = ", ".join([e.get("message", "Unknown error") for e in errors])
+            error_messages = ", ".join(
+                [e.get("message", "Unknown error") for e in errors]
+            )
             return f"❌ Failed to get zone health: {error_messages}"
 
         zones = zones_data.get("result", [])
@@ -216,7 +229,9 @@ def check_zone_health(zone_name: Optional[str] = None) -> str:
             try:
                 settings_data = _make_cloudflare_request(f"zones/{zone_id}/settings")
                 if settings_data.get("success"):
-                    settings = {s["id"]: s["value"] for s in settings_data.get("result", [])}
+                    settings = {
+                        s["id"]: s["value"] for s in settings_data.get("result", [])
+                    }
 
                     # SSL/TLS status
                     ssl_mode = settings.get("ssl", "unknown")
@@ -317,10 +332,12 @@ def get_cloudflare_analytics(zone_name: Optional[str] = None, hours: int = 24) -
 
                 # Cache stats
                 cached_requests = totals.get("requests", {}).get("cached", 0)
-                cache_hit_rate = (cached_requests / requests * 100) if requests > 0 else 0
+                cache_hit_rate = (
+                    (cached_requests / requests * 100) if requests > 0 else 0
+                )
 
                 # Format bandwidth (bytes to GB)
-                bandwidth_gb = bandwidth / (1024 ** 3)
+                bandwidth_gb = bandwidth / (1024**3)
 
                 output.append(f"\n📈 **{name}**")
                 output.append(f"  Requests: {requests:,}")
@@ -336,9 +353,13 @@ def get_cloudflare_analytics(zone_name: Optional[str] = None, hours: int = 24) -
                 status_5xx = sum(v for k, v in http_status.items() if k.startswith("5"))
 
                 if status_5xx > 0:
-                    output.append(f"  ⚠️ 5xx Errors: {status_5xx:,} ({status_5xx/requests*100:.1f}%)")
+                    output.append(
+                        f"  ⚠️ 5xx Errors: {status_5xx:,} ({status_5xx/requests*100:.1f}%)"
+                    )
                 if status_4xx > 0:
-                    output.append(f"  4xx Errors: {status_4xx:,} ({status_4xx/requests*100:.1f}%)")
+                    output.append(
+                        f"  4xx Errors: {status_4xx:,} ({status_4xx/requests*100:.1f}%)"
+                    )
 
             except Exception as e:
                 output.append(f"\n⚠️ **{name}**: Error fetching analytics: {str(e)}")
@@ -453,13 +474,19 @@ def check_security_events(zone_name: Optional[str] = None, hours: int = 1) -> st
                 output.append(f"  Total Events: {event_count}")
 
                 # Show action breakdown
-                for action, count in sorted(actions.items(), key=lambda x: x[1], reverse=True):
+                for action, count in sorted(
+                    actions.items(), key=lambda x: x[1], reverse=True
+                ):
                     output.append(f"  {action.title()}: {count}")
 
                 # Show top sources
-                top_sources = sorted(sources.items(), key=lambda x: x[1], reverse=True)[:3]
+                top_sources = sorted(sources.items(), key=lambda x: x[1], reverse=True)[
+                    :3
+                ]
                 if top_sources:
-                    output.append(f"  Top Sources: {', '.join([f'{s} ({c})' for s, c in top_sources])}")
+                    output.append(
+                        f"  Top Sources: {', '.join([f'{s} ({c})' for s, c in top_sources])}"
+                    )
 
             except Exception as e:
                 output.append(f"\n⚠️ **{name}**: Error checking security: {str(e)}")
@@ -517,7 +544,9 @@ def monitor_dns_records(zone_name: str) -> str:
 
         if not dns_data.get("success"):
             errors = dns_data.get("errors", [])
-            error_messages = ", ".join([e.get("message", "Unknown error") for e in errors])
+            error_messages = ", ".join(
+                [e.get("message", "Unknown error") for e in errors]
+            )
             return f"❌ Failed to get DNS records: {error_messages}"
 
         records = dns_data.get("result", [])
@@ -601,7 +630,9 @@ def get_cloudflare_status() -> str:
         output = ["🌐 Cloudflare Status Summary\n"]
 
         # Zone overview
-        active_zones = sum(1 for z in zones if z.get("status") == "active" and not z.get("paused"))
+        active_zones = sum(
+            1 for z in zones if z.get("status") == "active" and not z.get("paused")
+        )
         total_zones = len(zones)
 
         if active_zones == total_zones:
@@ -645,18 +676,22 @@ def get_cloudflare_status() -> str:
 
                     # Check for 5xx errors
                     http_status = totals.get("requests", {}).get("http_status", {})
-                    status_5xx = sum(v for k, v in http_status.items() if k.startswith("5"))
+                    status_5xx = sum(
+                        v for k, v in http_status.items() if k.startswith("5")
+                    )
 
                     if status_5xx > 0:
                         error_rate = status_5xx / requests * 100 if requests > 0 else 0
                         if error_rate > 5:
-                            zones_with_errors.append(f"{name} ({error_rate:.1f}% errors)")
+                            zones_with_errors.append(
+                                f"{name} ({error_rate:.1f}% errors)"
+                            )
 
             except Exception:
                 pass
 
         # Display metrics
-        bandwidth_gb = total_bandwidth / (1024 ** 3)
+        bandwidth_gb = total_bandwidth / (1024**3)
 
         output.append(f"**Requests (1h)**: {total_requests:,}")
         output.append(f"**Bandwidth (1h)**: {bandwidth_gb:.2f} GB")

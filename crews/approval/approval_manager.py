@@ -4,13 +4,14 @@ This module provides approval workflow functionality to ensure critical
 infrastructure changes require human approval before execution.
 """
 
-import os
-import time
 import json
 import logging
+import os
+import time
 from datetime import datetime
-from typing import Optional, Callable, Any
 from functools import wraps
+from typing import Any, Callable, Optional
+
 import requests
 from dotenv import load_dotenv
 
@@ -25,7 +26,12 @@ logger = logging.getLogger(__name__)
 CRITICAL_SERVICES = {
     "lxc": [200],  # LXC 200 is production PostgreSQL
     "databases": ["production", "postgres"],  # Production databases
-    "docker": ["postgres", "prometheus", "grafana", "alertmanager"],  # Critical containers
+    "docker": [
+        "postgres",
+        "prometheus",
+        "grafana",
+        "alertmanager",
+    ],  # Critical containers
 }
 
 # Approval timeout in seconds (default: 5 minutes)
@@ -51,7 +57,9 @@ class ApprovalManager:
         self.pending_approvals = {}  # Store pending approval requests
 
         if not self.bot_token or not self.chat_id:
-            logger.warning("Telegram credentials not configured - approval workflow disabled")
+            logger.warning(
+                "Telegram credentials not configured - approval workflow disabled"
+            )
 
     def is_critical_service(self, service_type: str, service_id: Any) -> bool:
         """
@@ -81,7 +89,7 @@ class ApprovalManager:
         action: str,
         details: str,
         severity: str = "warning",
-        timeout: int = APPROVAL_TIMEOUT
+        timeout: int = APPROVAL_TIMEOUT,
     ) -> dict:
         """
         Send approval request via Telegram and wait for response.
@@ -101,18 +109,14 @@ class ApprovalManager:
                 "approved": True,
                 "response_time": 0,
                 "approver": "auto (no telegram)",
-                "reason": "Telegram not configured"
+                "reason": "Telegram not configured",
             }
 
         # Generate unique approval ID
         approval_id = f"approval_{int(time.time())}_{hash(action) % 10000}"
 
         # Create approval message
-        severity_emoji = {
-            "info": "ℹ️",
-            "warning": "⚠️",
-            "critical": "🚨"
-        }
+        severity_emoji = {"info": "ℹ️", "warning": "⚠️", "critical": "🚨"}
         emoji = severity_emoji.get(severity, "❓")
 
         message = f"""{emoji} **APPROVAL REQUIRED** {emoji}
@@ -137,7 +141,7 @@ Auto-rejects in {timeout}s if no response."""
             payload = {
                 "chat_id": self.chat_id,
                 "text": message,
-                "parse_mode": "Markdown"
+                "parse_mode": "Markdown",
             }
             response = requests.post(url, json=payload, timeout=10)
             response.raise_for_status()
@@ -150,7 +154,7 @@ Auto-rejects in {timeout}s if no response."""
                 "details": details,
                 "severity": severity,
                 "timestamp": time.time(),
-                "approved": None
+                "approved": None,
             }
 
             # Wait for approval with timeout
@@ -170,7 +174,7 @@ Auto-rejects in {timeout}s if no response."""
                         "approved": approved,
                         "response_time": response_time,
                         "approver": "human",
-                        "reason": "Manual approval" if approved else "Manual rejection"
+                        "reason": "Manual approval" if approved else "Manual rejection",
                     }
 
                 # Poll for updates (check for /approve or /reject commands)
@@ -183,13 +187,15 @@ Auto-rejects in {timeout}s if no response."""
 
             # Send timeout notification
             timeout_msg = f"❌ **APPROVAL TIMEOUT**\n\nAction auto-rejected: {action}"
-            requests.post(url, json={"chat_id": self.chat_id, "text": timeout_msg}, timeout=10)
+            requests.post(
+                url, json={"chat_id": self.chat_id, "text": timeout_msg}, timeout=10
+            )
 
             return {
                 "approved": False,
                 "response_time": timeout,
                 "approver": "auto (timeout)",
-                "reason": "No response within timeout"
+                "reason": "No response within timeout",
             }
 
         except Exception as e:
@@ -199,7 +205,7 @@ Auto-rejects in {timeout}s if no response."""
                 "approved": False,
                 "response_time": 0,
                 "approver": "auto (error)",
-                "reason": f"Error: {str(e)}"
+                "reason": f"Error: {str(e)}",
             }
 
     def _check_for_response(self, approval_id: str):
@@ -246,7 +252,7 @@ Auto-rejects in {timeout}s if no response."""
         details: str,
         approved: bool,
         approver: str,
-        outcome: str = "pending"
+        outcome: str = "pending",
     ):
         """
         Log remediation action to audit file.
@@ -265,7 +271,7 @@ Auto-rejects in {timeout}s if no response."""
                 "details": details,
                 "approved": approved,
                 "approver": approver,
-                "outcome": outcome
+                "outcome": outcome,
             }
 
             # Append to audit log file
@@ -293,7 +299,7 @@ def get_approval_manager() -> ApprovalManager:
 def requires_approval(
     service_type: str,
     get_service_id: Optional[Callable] = None,
-    action_name: Optional[str] = None
+    action_name: Optional[str] = None,
 ):
     """
     Decorator to require approval for critical service operations.
@@ -308,6 +314,7 @@ def requires_approval(
         def update_lxc_resources(vmid: int, cpu: int = None, ...):
             pass
     """
+
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         def wrapper(*args, **kwargs):
@@ -328,7 +335,9 @@ def requires_approval(
 
             # If not critical, execute without approval
             if not is_critical:
-                logger.info(f"Non-critical service {service_id} - executing without approval")
+                logger.info(
+                    f"Non-critical service {service_id} - executing without approval"
+                )
                 result = func(*args, **kwargs)
 
                 # Audit log
@@ -337,7 +346,7 @@ def requires_approval(
                     details=f"Non-critical {service_type}: {service_id}",
                     approved=True,
                     approver="auto (non-critical)",
-                    outcome="success"
+                    outcome="success",
                 )
 
                 return result
@@ -356,7 +365,7 @@ def requires_approval(
                     details=details,
                     approved=True,
                     approver="auto (dry-run)",
-                    outcome="success (dry-run)"
+                    outcome="success (dry-run)",
                 )
 
                 return result
@@ -365,7 +374,11 @@ def requires_approval(
             approval_result = manager.send_approval_request(
                 action=f"{action} on {service_type} {service_id}",
                 details=details,
-                severity="critical" if service_type == "lxc" and service_id == 200 else "warning"
+                severity=(
+                    "critical"
+                    if service_type == "lxc" and service_id == 200
+                    else "warning"
+                ),
             )
 
             # Log approval request
@@ -374,12 +387,14 @@ def requires_approval(
                 details=details,
                 approved=approval_result["approved"],
                 approver=approval_result["approver"],
-                outcome="pending"
+                outcome="pending",
             )
 
             # If approved, execute
             if approval_result["approved"]:
-                logger.info(f"Action approved by {approval_result['approver']} - executing")
+                logger.info(
+                    f"Action approved by {approval_result['approver']} - executing"
+                )
 
                 try:
                     result = func(*args, **kwargs)
@@ -390,7 +405,7 @@ def requires_approval(
                         details=details,
                         approved=True,
                         approver=approval_result["approver"],
-                        outcome="success"
+                        outcome="success",
                     )
 
                     return result
@@ -402,15 +417,20 @@ def requires_approval(
                         details=details,
                         approved=True,
                         approver=approval_result["approver"],
-                        outcome=f"failure: {str(e)}"
+                        outcome=f"failure: {str(e)}",
                     )
                     raise
             else:
                 # Rejected - do not execute
-                logger.warning(f"Action rejected by {approval_result['approver']} - not executing")
+                logger.warning(
+                    f"Action rejected by {approval_result['approver']} - not executing"
+                )
 
-                rejection_msg = f"❌ Action rejected: {action}\nReason: {approval_result['reason']}"
+                rejection_msg = (
+                    f"❌ Action rejected: {action}\nReason: {approval_result['reason']}"
+                )
                 return rejection_msg
 
         return wrapper
+
     return decorator

@@ -1,19 +1,21 @@
 """Tailscale VPN integration tools for network visibility and monitoring."""
 
 import os
+from datetime import datetime, timedelta
+from typing import Dict, List, Optional
+
 import requests
 from crewai.tools import tool
 from dotenv import load_dotenv
-from typing import Optional, List, Dict
-from datetime import datetime, timedelta
 
 # Load environment variables
 load_dotenv()
 
 # Tailscale API configuration
 TAILSCALE_API_BASE = "https://api.tailscale.com/api/v2"
-TAILSCALE_API_KEY = os.getenv('TAILSCALE_API_KEY')
-TAILSCALE_TAILNET = os.getenv('TAILSCALE_TAILNET', 'mariusmyklevik@gmail.com')
+TAILSCALE_API_KEY = os.getenv("TAILSCALE_API_KEY")
+TAILSCALE_TAILNET = os.getenv("TAILSCALE_TAILNET", "mariusmyklevik@gmail.com")
+
 
 def _make_tailscale_request(endpoint: str) -> dict:
     """
@@ -26,7 +28,7 @@ def _make_tailscale_request(endpoint: str) -> dict:
         JSON response as dictionary
     """
     url = f"{TAILSCALE_API_BASE}/tailnet/{TAILSCALE_TAILNET}/{endpoint}"
-    response = requests.get(url, auth=(TAILSCALE_API_KEY, ''))
+    response = requests.get(url, auth=(TAILSCALE_API_KEY, ""))
     response.raise_for_status()
     return response.json()
 
@@ -50,14 +52,16 @@ def list_tailscale_devices(filter_online: Optional[bool] = None) -> str:
     """
     try:
         data = _make_tailscale_request("devices")
-        devices = data.get('devices', [])
+        devices = data.get("devices", [])
 
         if not devices:
             return "No Tailscale devices found"
 
         # Filter by online status if specified
         if filter_online is not None:
-            devices = [d for d in devices if d.get('connectedToControl') == filter_online]
+            devices = [
+                d for d in devices if d.get("connectedToControl") == filter_online
+            ]
 
         # Format device list
         result = []
@@ -65,18 +69,20 @@ def list_tailscale_devices(filter_online: Optional[bool] = None) -> str:
         offline_count = 0
 
         for device in devices:
-            name = device.get('hostname', 'unknown')
-            ip = device.get('addresses', ['no-ip'])[0]
-            online = device.get('connectedToControl', False)
+            name = device.get("hostname", "unknown")
+            ip = device.get("addresses", ["no-ip"])[0]
+            online = device.get("connectedToControl", False)
             status = "🟢 ONLINE" if online else "🔴 OFFLINE"
-            last_seen = device.get('lastSeen', 'never')
-            os_type = device.get('os', 'unknown')
-            client_version = device.get('clientVersion', 'unknown')
+            last_seen = device.get("lastSeen", "never")
+            os_type = device.get("os", "unknown")
+            client_version = device.get("clientVersion", "unknown")
 
             # Parse last seen time
-            if last_seen != 'never':
+            if last_seen != "never":
                 try:
-                    last_seen_dt = datetime.fromisoformat(last_seen.replace('Z', '+00:00'))
+                    last_seen_dt = datetime.fromisoformat(
+                        last_seen.replace("Z", "+00:00")
+                    )
                     now = datetime.now(last_seen_dt.tzinfo)
                     delta = now - last_seen_dt
 
@@ -93,7 +99,9 @@ def list_tailscale_devices(filter_online: Optional[bool] = None) -> str:
             else:
                 last_seen_str = "never"
 
-            result.append(f"{status} {name} ({ip}) - {os_type} - Last seen: {last_seen_str}")
+            result.append(
+                f"{status} {name} ({ip}) - {os_type} - Last seen: {last_seen_str}"
+            )
 
             if online:
                 online_count += 1
@@ -126,38 +134,42 @@ def check_device_connectivity(hostname: str) -> str:
     """
     try:
         data = _make_tailscale_request("devices")
-        devices = data.get('devices', [])
+        devices = data.get("devices", [])
 
         # Find device by hostname
         device = None
         for d in devices:
-            if d.get('hostname', '').lower() == hostname.lower():
+            if d.get("hostname", "").lower() == hostname.lower():
                 device = d
                 break
 
         if not device:
             # Try searching by name field
             for d in devices:
-                if hostname.lower() in d.get('name', '').lower():
+                if hostname.lower() in d.get("name", "").lower():
                     device = d
                     break
 
         if not device:
-            available = [d.get('hostname', 'unknown') for d in devices[:10]]
+            available = [d.get("hostname", "unknown") for d in devices[:10]]
             return f"✗ Device '{hostname}' not found. Available devices: {', '.join(available)}"
 
         # Extract device details
-        name = device.get('hostname', 'unknown')
-        ip_v4 = device.get('addresses', ['no-ip'])[0]
-        ip_v6 = device.get('addresses', ['no-ipv6'])[1] if len(device.get('addresses', [])) > 1 else 'no-ipv6'
-        online = device.get('connectedToControl', False)
-        last_seen = device.get('lastSeen', 'never')
-        os_type = device.get('os', 'unknown')
-        client_version = device.get('clientVersion', 'unknown')
-        update_available = device.get('updateAvailable', False)
-        created = device.get('created', 'unknown')
-        expires = device.get('expires', 'never')
-        key_expiry_disabled = device.get('keyExpiryDisabled', False)
+        name = device.get("hostname", "unknown")
+        ip_v4 = device.get("addresses", ["no-ip"])[0]
+        ip_v6 = (
+            device.get("addresses", ["no-ipv6"])[1]
+            if len(device.get("addresses", [])) > 1
+            else "no-ipv6"
+        )
+        online = device.get("connectedToControl", False)
+        last_seen = device.get("lastSeen", "never")
+        os_type = device.get("os", "unknown")
+        client_version = device.get("clientVersion", "unknown")
+        update_available = device.get("updateAvailable", False)
+        created = device.get("created", "unknown")
+        expires = device.get("expires", "never")
+        key_expiry_disabled = device.get("keyExpiryDisabled", False)
 
         status = "🟢 ONLINE" if online else "🔴 OFFLINE"
         update_status = "⚠️ Update available" if update_available else "✓ Up to date"
@@ -193,14 +205,14 @@ def monitor_vpn_health() -> str:
     """
     try:
         data = _make_tailscale_request("devices")
-        devices = data.get('devices', [])
+        devices = data.get("devices", [])
 
         if not devices:
             return "⚠️ No Tailscale devices found"
 
         # Calculate statistics
         total = len(devices)
-        online = sum(1 for d in devices if d.get('connectedToControl'))
+        online = sum(1 for d in devices if d.get("connectedToControl"))
         offline = total - online
 
         # Find devices offline for more than 24 hours
@@ -211,29 +223,39 @@ def monitor_vpn_health() -> str:
         now = datetime.now(datetime.now().astimezone().tzinfo)
 
         for device in devices:
-            hostname = device.get('hostname', 'unknown')
+            hostname = device.get("hostname", "unknown")
 
             # Check offline status
-            if not device.get('connectedToControl'):
-                last_seen = device.get('lastSeen', '')
+            if not device.get("connectedToControl"):
+                last_seen = device.get("lastSeen", "")
                 if last_seen:
                     try:
-                        last_seen_dt = datetime.fromisoformat(last_seen.replace('Z', '+00:00'))
+                        last_seen_dt = datetime.fromisoformat(
+                            last_seen.replace("Z", "+00:00")
+                        )
                         delta = now - last_seen_dt
 
                         if delta > timedelta(days=7):
-                            critical_offline.append(f"{hostname} (offline {delta.days}d)")
+                            critical_offline.append(
+                                f"{hostname} (offline {delta.days}d)"
+                            )
                         elif delta > timedelta(days=1):
-                            warning_offline.append(f"{hostname} (offline {delta.days}d)")
+                            warning_offline.append(
+                                f"{hostname} (offline {delta.days}d)"
+                            )
                     except Exception:
                         pass
 
             # Check for updates
-            if device.get('updateAvailable'):
+            if device.get("updateAvailable"):
                 updates_needed.append(hostname)
 
         # Build health report
-        health_status = "✅ HEALTHY" if offline == 0 else "⚠️ WARNING" if offline < total * 0.2 else "🔴 CRITICAL"
+        health_status = (
+            "✅ HEALTHY"
+            if offline == 0
+            else "⚠️ WARNING" if offline < total * 0.2 else "🔴 CRITICAL"
+        )
 
         result = f"""
 === Tailscale VPN Health ===
@@ -285,23 +307,23 @@ def get_critical_infrastructure_status() -> str:
     """
     try:
         data = _make_tailscale_request("devices")
-        devices = data.get('devices', [])
+        devices = data.get("devices", [])
 
         # Define critical infrastructure
         critical_hostnames = [
-            'fjeld',  # Proxmox host
-            'docker-gateway',
-            'postgres',
-            'grafana',
-            'prometheus',
-            'portal'
+            "fjeld",  # Proxmox host
+            "docker-gateway",
+            "postgres",
+            "grafana",
+            "prometheus",
+            "portal",
         ]
 
         # Find critical devices
         critical_devices = {}
         for hostname in critical_hostnames:
             for device in devices:
-                if device.get('hostname', '').lower() == hostname.lower():
+                if device.get("hostname", "").lower() == hostname.lower():
                     critical_devices[hostname] = device
                     break
 
@@ -317,13 +339,13 @@ def get_critical_infrastructure_status() -> str:
                 all_online = False
                 continue
 
-            online = device.get('connectedToControl', False)
-            ip = device.get('addresses', ['no-ip'])[0]
+            online = device.get("connectedToControl", False)
+            ip = device.get("addresses", ["no-ip"])[0]
 
             if online:
                 result += f"✅ {hostname}: ONLINE ({ip})\n"
             else:
-                last_seen = device.get('lastSeen', 'never')
+                last_seen = device.get("lastSeen", "never")
                 result += f"🔴 {hostname}: OFFLINE - Last seen: {last_seen}\n"
                 all_online = False
 

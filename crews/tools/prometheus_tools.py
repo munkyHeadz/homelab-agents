@@ -7,8 +7,9 @@ API Documentation: https://prometheus.io/docs/prometheus/latest/querying/api/
 """
 
 import os
+from typing import Any, Dict, List, Optional
+
 import requests
-from typing import Dict, Any, Optional, List
 from crewai.tools import tool
 from dotenv import load_dotenv
 
@@ -22,7 +23,9 @@ ERROR_CONNECTION = "❌ Cannot connect to Prometheus API"
 ERROR_TIMEOUT = "⏱️ Prometheus API timeout"
 
 
-def _make_prometheus_request(endpoint: str, params: Optional[Dict] = None) -> Dict[str, Any]:
+def _make_prometheus_request(
+    endpoint: str, params: Optional[Dict] = None
+) -> Dict[str, Any]:
     """
     Make HTTP request to Prometheus API.
 
@@ -71,9 +74,15 @@ def _make_prometheus_request(endpoint: str, params: Optional[Dict] = None) -> Di
                 f"💡 Check: Service logs, resource usage, startup progress"
             )
         else:
-            raise Exception(f"❌ Prometheus API HTTP error {e.response.status_code}: {e.response.text}")
+            raise Exception(
+                f"❌ Prometheus API HTTP error {e.response.status_code}: {e.response.text}"
+            )
     except Exception as e:
-        if "Prometheus API error" in str(e) or ERROR_CONNECTION in str(e) or ERROR_TIMEOUT in str(e):
+        if (
+            "Prometheus API error" in str(e)
+            or ERROR_CONNECTION in str(e)
+            or ERROR_TIMEOUT in str(e)
+        ):
             raise
         raise Exception(f"❌ Unexpected error with Prometheus API: {str(e)}")
 
@@ -131,7 +140,9 @@ def check_prometheus_targets(state_filter: Optional[str] = None) -> str:
             result.append("**Targets by Job:**")
             for job, data in sorted(jobs.items()):
                 status_icon = "✅" if data["down"] == 0 else "⚠️"
-                result.append(f"{status_icon} {job}: {data['up']} up, {data['down']} down")
+                result.append(
+                    f"{status_icon} {job}: {data['up']} up, {data['down']} down"
+                )
 
                 # Show unhealthy targets
                 for target in data["targets"]:
@@ -148,7 +159,9 @@ def check_prometheus_targets(state_filter: Optional[str] = None) -> str:
         if state_filter is None or state_filter == "dropped":
             if dropped_targets:
                 result.append(f"\n**Dropped Targets**: {len(dropped_targets)}")
-                result.append("(Targets that were discovered but not scraped due to relabeling)")
+                result.append(
+                    "(Targets that were discovered but not scraped due to relabeling)"
+                )
 
         return "\n".join(result)
 
@@ -235,7 +248,7 @@ def check_prometheus_rules(rule_type: Optional[str] = None) -> str:
                         f"{icon} **{rule_name}** ({type_label})",
                         f"   Group: {group_name}",
                         f"   Health: {rule_health}",
-                        f"   Evaluation: {evaluation_time:.3f}s"
+                        f"   Evaluation: {evaluation_time:.3f}s",
                     ]
 
                     if is_alert:
@@ -261,7 +274,9 @@ def check_prometheus_rules(rule_type: Optional[str] = None) -> str:
             result.append("**Rule Details:**\n")
             result.extend(rule_details)
         elif total_rules > 20:
-            result.append("💡 All rules healthy. Use rule_type filter to see specific rules.")
+            result.append(
+                "💡 All rules healthy. Use rule_type filter to see specific rules."
+            )
 
         health_status = "🟢 HEALTHY" if failed_rules == 0 else "🔴 FAILURES DETECTED"
         result.append(f"\n**Status**: {health_status}")
@@ -468,7 +483,9 @@ def get_prometheus_runtime_info() -> str:
         result.append(f"\n**Runtime Status:**")
         result.append(f"   • Start Time: {start_time}")
         result.append(f"   • Last Config Reload: {last_config_time}")
-        result.append(f"   • Config Reload Success: {'✅' if reload_config_success else '❌'}")
+        result.append(
+            f"   • Config Reload Success: {'✅' if reload_config_success else '❌'}"
+        )
         result.append(f"   • Storage Retention: {storage_retention}")
         result.append(f"   • Goroutines: {goroutine_count}")
         result.append(f"   • GOMAXPROCS: {gomaxprocs}")

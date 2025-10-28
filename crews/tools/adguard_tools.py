@@ -1,12 +1,13 @@
 """AdGuard Home DNS monitoring tools for AI agents."""
 
 import os
-import requests
-from requests.auth import HTTPBasicAuth
-from crewai.tools import tool
-from typing import Optional, Dict, Any
 from datetime import datetime
+from typing import Any, Dict, Optional
+
+import requests
+from crewai.tools import tool
 from dotenv import load_dotenv
+from requests.auth import HTTPBasicAuth
 
 load_dotenv()
 
@@ -22,7 +23,9 @@ ADGUARD_PASSWORD = os.getenv("ADGUARD_PASSWORD", "")
 ADGUARD_BASE_URL = f"http://{ADGUARD_HOST}:{ADGUARD_PORT}"
 
 
-def _make_adguard_request(endpoint: str, method: str = "GET", data: Optional[Dict] = None) -> Dict[str, Any]:
+def _make_adguard_request(
+    endpoint: str, method: str = "GET", data: Optional[Dict] = None
+) -> Dict[str, Any]:
     """
     Make a request to the AdGuard Home API.
 
@@ -38,7 +41,9 @@ def _make_adguard_request(endpoint: str, method: str = "GET", data: Optional[Dic
         Exception: If API request fails
     """
     if not ADGUARD_ENABLED:
-        raise Exception("AdGuard integration is disabled. Set ADGUARD_ENABLED=true in .env")
+        raise Exception(
+            "AdGuard integration is disabled. Set ADGUARD_ENABLED=true in .env"
+        )
 
     if not ADGUARD_USERNAME or not ADGUARD_PASSWORD:
         raise Exception(
@@ -82,10 +87,14 @@ def _make_adguard_request(endpoint: str, method: str = "GET", data: Optional[Dic
         elif e.response.status_code == 404:
             raise Exception(f"AdGuard API endpoint not found (404): {endpoint}")
         else:
-            raise Exception(f"AdGuard API error ({e.response.status_code}): {e.response.text}")
+            raise Exception(
+                f"AdGuard API error ({e.response.status_code}): {e.response.text}"
+            )
 
     except requests.exceptions.Timeout:
-        raise Exception(f"AdGuard API request timed out after 10 seconds (host: {ADGUARD_HOST}:{ADGUARD_PORT})")
+        raise Exception(
+            f"AdGuard API request timed out after 10 seconds (host: {ADGUARD_HOST}:{ADGUARD_PORT})"
+        )
 
     except requests.exceptions.ConnectionError:
         raise Exception(
@@ -161,10 +170,14 @@ def check_adguard_status() -> str:
             if len(dns_addresses) > 3:
                 output.append(f"  ... and {len(dns_addresses) - 3} more")
 
-        output.append(f"**DHCP Server**: {'Available' if dhcp_available else 'Not Available'}")
+        output.append(
+            f"**DHCP Server**: {'Available' if dhcp_available else 'Not Available'}"
+        )
 
         if not protection_enabled:
-            output.append(f"\n⚠️ **Warning**: DNS filtering protection is currently disabled!")
+            output.append(
+                f"\n⚠️ **Warning**: DNS filtering protection is currently disabled!"
+            )
             output.append(f"   Ads and trackers are NOT being blocked.")
 
         return "\n".join(output)
@@ -211,12 +224,18 @@ def get_dns_query_stats() -> str:
         output = ["📊 DNS Query Statistics\n"]
 
         # Calculate total blocked
-        total_blocked = num_blocked_filtering + num_replaced_safebrowsing + num_replaced_parental
-        block_percentage = (total_blocked / num_dns_queries * 100) if num_dns_queries > 0 else 0
+        total_blocked = (
+            num_blocked_filtering + num_replaced_safebrowsing + num_replaced_parental
+        )
+        block_percentage = (
+            (total_blocked / num_dns_queries * 100) if num_dns_queries > 0 else 0
+        )
 
         output.append(f"**Time Period**: Last 24 {time_units}")
         output.append(f"**Total Queries**: {num_dns_queries:,}")
-        output.append(f"**Blocked Queries**: {total_blocked:,} ({block_percentage:.1f}%)")
+        output.append(
+            f"**Blocked Queries**: {total_blocked:,} ({block_percentage:.1f}%)"
+        )
 
         if num_blocked_filtering > 0:
             output.append(f"  • Ad/Tracker Blocking: {num_blocked_filtering:,}")
@@ -319,7 +338,7 @@ def check_blocklist_status() -> str:
                 if last_updated:
                     # Parse timestamp
                     try:
-                        dt = datetime.fromisoformat(last_updated.replace('Z', '+00:00'))
+                        dt = datetime.fromisoformat(last_updated.replace("Z", "+00:00"))
                         time_ago = datetime.now().replace(tzinfo=dt.tzinfo) - dt
                         days_ago = time_ago.days
                         if days_ago == 0:
@@ -341,9 +360,13 @@ def check_blocklist_status() -> str:
 
         # Warnings
         if not enabled:
-            output.append(f"\n⚠️ **Warning**: Filtering is disabled - no blocking active!")
+            output.append(
+                f"\n⚠️ **Warning**: Filtering is disabled - no blocking active!"
+            )
         elif total_rules < 10000:
-            output.append(f"\n⚠️ **Warning**: Low rule count - consider enabling more blocklists")
+            output.append(
+                f"\n⚠️ **Warning**: Low rule count - consider enabling more blocklists"
+            )
 
         return "\n".join(output)
 
@@ -380,7 +403,9 @@ def monitor_dns_clients() -> str:
 
         output = ["👥 DNS Client Activity\n"]
 
-        total_queries = sum(count for client_dict in top_clients for count in client_dict.values())
+        total_queries = sum(
+            count for client_dict in top_clients for count in client_dict.values()
+        )
 
         output.append(f"**Total Queries**: {total_queries:,}")
         output.append(f"**Active Clients**: {len(top_clients)}")
@@ -405,10 +430,14 @@ def monitor_dns_clients() -> str:
         # Warnings
         if len(top_clients) > 0:
             top_client = list(top_clients[0].values())[0]
-            top_percentage = (top_client / total_queries * 100) if total_queries > 0 else 0
+            top_percentage = (
+                (top_client / total_queries * 100) if total_queries > 0 else 0
+            )
 
             if top_percentage > 50:
-                output.append(f"\n⚠️ **Alert**: One client is generating over 50% of DNS traffic!")
+                output.append(
+                    f"\n⚠️ **Alert**: One client is generating over 50% of DNS traffic!"
+                )
                 output.append(f"   This may indicate misconfiguration or DNS abuse.")
 
         return "\n".join(output)
@@ -472,8 +501,12 @@ def get_adguard_protection_summary() -> str:
         output.append(f"**Version**: {version}")
 
         # Query statistics (last 24 hours)
-        total_blocked = num_blocked_filtering + num_replaced_safebrowsing + num_replaced_parental
-        block_percentage = (total_blocked / num_dns_queries * 100) if num_dns_queries > 0 else 0
+        total_blocked = (
+            num_blocked_filtering + num_replaced_safebrowsing + num_replaced_parental
+        )
+        block_percentage = (
+            (total_blocked / num_dns_queries * 100) if num_dns_queries > 0 else 0
+        )
 
         output.append(f"\n**DNS Queries (24h)**: {num_dns_queries:,}")
         output.append(f"**Blocked (24h)**: {total_blocked:,} ({block_percentage:.1f}%)")
@@ -502,7 +535,12 @@ def get_adguard_protection_summary() -> str:
             issues.append("❌ Protection disabled")
         if running and protection_enabled and total_rules < 10000:
             issues.append("⚠️ Low rule count - consider more blocklists")
-        if running and protection_enabled and block_percentage < 5 and num_dns_queries > 1000:
+        if (
+            running
+            and protection_enabled
+            and block_percentage < 5
+            and num_dns_queries > 1000
+        ):
             issues.append("⚠️ Low blocking rate - check configuration")
 
         if issues:
