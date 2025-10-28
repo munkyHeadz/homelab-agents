@@ -17,6 +17,7 @@ A **fully autonomous AI incident response system** that detects, diagnoses, and 
 ### Key Features
 
 - ✅ **Autonomous Incident Response** - End-to-end handling without human intervention
+- ✅ **Approval Workflow** - 🔒 Critical operations require human approval via Telegram
 - ✅ **Continuous Learning** - Vector memory with semantic search for similar incidents
 - ✅ **Multi-Layer Monitoring** - Infrastructure, network, and database visibility
 - ✅ **Production Ready** - Deployed and tested with 100% success rate
@@ -343,6 +344,51 @@ Total: ~40-140 seconds end-to-end
 
 ---
 
+## 🔒 Approval Workflow & Safety
+
+**Phase 26:** Critical infrastructure protection via human-in-the-loop approval workflow.
+
+### How It Works
+
+When the Healer agent attempts a potentially dangerous operation on critical infrastructure:
+
+1. **Detection:** System identifies critical service (LXC 200, production DB, etc.)
+2. **Approval Request:** Sends Telegram message with action details and severity
+3. **Human Decision:** User approves (`/approve <id>`) or rejects (`/reject <id>`)
+4. **Execution:** AI proceeds only if approved within timeout (5 minutes)
+5. **Audit:** All actions logged with approver, timestamp, and outcome
+
+### Critical Services Protected
+
+- **LXC 200** - Production PostgreSQL container
+- **Production Databases** - postgres, production
+- **Critical Containers** - postgres, prometheus, grafana, alertmanager
+
+### Safety Features
+
+- ✅ **Auto-reject on timeout** (5min default) - Safe by default
+- ✅ **Dry-run bypass** - Testing without approval required
+- ✅ **Non-critical auto-approve** - No delay for safe operations
+- ✅ **Audit trail** - JSON logs all remediation actions
+- ✅ **Error safety** - Auto-reject on any error condition
+
+### Example: PostgreSQL Memory Increase
+
+```
+🚨 APPROVAL REQUIRED 🚨
+
+Action: Update LXC 200 resources
+Details: Memory: 2048MB → 4096MB
+Severity: CRITICAL
+Timeout: 300s
+
+Reply: /approve <id> or /reject <id>
+```
+
+User has 5 minutes to approve/reject. No response = auto-reject.
+
+---
+
 ## 📊 Monitoring & Dashboards
 
 ### Grafana Dashboard
@@ -566,8 +612,9 @@ curl -X POST http://100.67.169.111:9093/api/v1/alerts \
 | **23** | PostgreSQL monitoring expansion (6 tools) | ✅ Complete |
 | **24** | LXC container management expansion (6 tools) | ✅ Complete |
 | **25** | Healer Expansion Part 1 - Remediation (6 tools) | ✅ Complete |
+| **26** | Approval Workflow & Safety Controls | ✅ Complete 🔒 |
 
-**Total Development Time:** ~24 hours
+**Total Development Time:** ~26 hours
 **Lines of Code:** ~16,500+
 **Documentation:** ~17,000+ lines
 **Service Coverage:** 51.6% (16/31 services)
@@ -695,10 +742,11 @@ MIT License - See LICENSE file for details
 ---
 
 **Status:** ✅ Production Operational
-**Version:** 1.8.0
+**Version:** 1.9.0
 **Last Updated:** 2025-10-27
 **Success Rate:** 100% (8/8 incidents)
 **Average Resolution:** 137 seconds
 **Service Coverage:** 51.6% (16/31 services)
 **Tools Available:** 87 autonomous tools (+6 remediation tools)
+**Safety:** 🔒 Approval workflow protecting critical infrastructure
 **Monthly Cost:** $0.38
