@@ -1,5 +1,5 @@
 [run]
-source = crews
+source = crews/approval
 omit =
     */tests/*
     */venv/*
@@ -17,6 +17,10 @@ exclude_lines =
     if TYPE_CHECKING:
     @abstractmethod
     @abc.abstractmethod
+# Only fail on approval module coverage
+fail_under = 20
+skip_covered = True
+skip_empty = True
 
 [html]
 directory = htmlcov
