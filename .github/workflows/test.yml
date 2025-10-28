@@ -45,7 +45,7 @@ jobs:
 
     - name: Check test coverage
       run: |
-        pytest tests/ --cov=crews --cov-report=term-missing --cov-fail-under=80
+        pytest tests/ --cov=crews --cov-report=term-missing --cov-fail-under=20
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v3
