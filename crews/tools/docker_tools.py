@@ -5,6 +5,7 @@ from crewai.tools import tool
 from typing import Optional
 import humanize
 from datetime import datetime
+from crews.approval import get_approval_manager
 
 
 def get_docker_client():
@@ -642,6 +643,20 @@ def update_docker_resources(container: str, cpu_limit: str = None, memory_limit:
             for change in changes:
                 output.append(f"  • {change}")
             return "\n".join(output)
+
+        # Check if critical container and request approval
+        approval_manager = get_approval_manager()
+        if approval_manager.is_critical_service("docker", container_name):
+            details = f"Container: {container_name}\nChanges:\n" + "\n".join(f"  • {c}" for c in changes)
+
+            approval_result = approval_manager.send_approval_request(
+                action=f"Update resources for container '{container_name}'",
+                details=details,
+                severity="warning"
+            )
+
+            if not approval_result["approved"]:
+                return f"❌ Action rejected: {approval_result['reason']}\nChanges NOT applied to {container_name}"
 
         # Apply changes
         container_obj.update(**update_params)

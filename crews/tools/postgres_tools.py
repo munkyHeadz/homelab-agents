@@ -6,6 +6,7 @@ from crewai.tools import tool
 from dotenv import load_dotenv
 from typing import Optional
 from datetime import datetime, timedelta
+from crews.approval import get_approval_manager
 
 # Load environment variables
 load_dotenv()
@@ -1284,6 +1285,21 @@ def vacuum_postgres_table(database: str, table: str, full: bool = False, dry_run
         if dry_run:
             return f"🔍 DRY-RUN: Would run {vacuum_type} on table '{table}' in database '{database}'\n\n⚠️ {'Exclusive lock required - blocks all access' if full else 'Non-blocking operation'}"
 
+        # Check if critical database or VACUUM FULL and request approval
+        approval_manager = get_approval_manager()
+        if approval_manager.is_critical_service("databases", database) or full:
+            details = f"Database: {database}\nTable: {table}\nOperation: {vacuum_type}\n"
+            details += "⚠️ Exclusive lock required - blocks table access" if full else "Non-blocking operation"
+
+            approval_result = approval_manager.send_approval_request(
+                action=f"{vacuum_type} on {database}.{table}",
+                details=details,
+                severity="critical" if full else "warning"
+            )
+
+            if not approval_result["approved"]:
+                return f"❌ Action rejected: {approval_result['reason']}\nVACUUM NOT executed on {database}.{table}"
+
         # Connect to database
         conn = psycopg.connect(
             host=host,
@@ -1419,6 +1435,27 @@ def clear_postgres_connections(database: str, force_user: str = None, dry_run: b
                 output.append(f"  • PID {pid}: {username} ({app}) - {state}")
             conn.close()
             return "\n".join(output)
+
+        # Check if critical database and request approval
+        approval_manager = get_approval_manager()
+        if approval_manager.is_critical_service("databases", database):
+            details = f"Database: {database}\nConnections to terminate: {len(connections)}\n"
+            if force_user:
+                details += f"User filter: {force_user}\n"
+            details += "\nConnections:\n"
+            for conn_info in connections:
+                pid, username, app, state, _, _ = conn_info
+                details += f"  • PID {pid}: {username} ({app}) - {state}\n"
+
+            approval_result = approval_manager.send_approval_request(
+                action=f"Terminate {len(connections)} connection(s) to {database}",
+                details=details,
+                severity="critical"
+            )
+
+            if not approval_result["approved"]:
+                conn.close()
+                return f"❌ Action rejected: {approval_result['reason']}\nConnections NOT terminated"
 
         # Terminate connections
         terminated = []

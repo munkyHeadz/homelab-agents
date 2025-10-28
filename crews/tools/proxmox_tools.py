@@ -5,6 +5,7 @@ from crewai.tools import tool
 from proxmoxer import ProxmoxAPI
 from typing import Optional
 from dotenv import load_dotenv
+from crews.approval import get_approval_manager
 
 load_dotenv()
 
@@ -1268,6 +1269,19 @@ def update_lxc_resources(vmid: int, cpu: int = None, memory: int = None, swap: i
             for change in changes:
                 output.append(f"  • {change}")
             return "\n".join(output)
+
+        # Check if critical service and request approval
+        approval_manager = get_approval_manager()
+        if approval_manager.is_critical_service("lxc", vmid):
+            details = f"LXC: {vmid} ({lxc_name})\nChanges:\n" + "\n".join(f"  • {c}" for c in changes)
+            approval_result = approval_manager.send_approval_request(
+                action=f"Update LXC {vmid} resources",
+                details=details,
+                severity="critical" if vmid == 200 else "warning"
+            )
+
+            if not approval_result["approved"]:
+                return f"❌ Action rejected: {approval_result['reason']}\nChanges NOT applied to LXC {vmid}"
 
         # Validate node has resources
         node_status = proxmox.nodes(target_node).status.get()
