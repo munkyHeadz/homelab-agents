@@ -2,7 +2,7 @@
 
 **An autonomous AI-powered incident response system with continuous learning for homelab infrastructure management.**
 
-[![Status](https://img.shields.io/badge/status-production-success)](http://100.67.169.111:5000/health)
+[![Status](https://img.shields.io/badge/status-production-success)](http://xxx.xxx.xxx:5000/health)
 [![Success Rate](https://img.shields.io/badge/success%20rate-100%25-success)]()
 [![Monthly Cost](https://img.shields.io/badge/monthly%20cost-$0.38-blue)]()
 [![Tools](https://img.shields.io/badge/autonomous%20tools-39-blue)]()
@@ -285,7 +285,7 @@ Total: ~40-140 seconds end-to-end
 
 ### Grafana Dashboard
 
-**URL:** http://100.120.140.105:3000/d/ai-agents-dashboard/
+**URL:** http://xxx.xxx.xxx:3000/d/ai-agents-dashboard/
 
 **9 Visualization Panels:**
 - Total Incidents (stat with sparkline)
@@ -447,23 +447,23 @@ homelab-agents/
 
 ```bash
 # Test service health
-curl http://100.67.169.111:5000/health
+curl http://xxx.xxx.xxx:5000/health
 
 # Check incident statistics
-curl http://100.67.169.111:5000/stats
+curl http://xxx.xxx.xxx:5000/stats
 
 # View recent incidents
-curl http://100.67.169.111:5000/incidents?limit=5
+curl http://xxx.xxx.xxx:5000/incidents?limit=5
 
 # Test Prometheus metrics
-curl http://100.67.169.111:5000/metrics
+curl http://xxx.xxx.xxx.111:5000/metrics
 ```
 
 ### Simulating Incidents
 
 ```bash
 # Trigger a test alert via Alertmanager
-curl -X POST http://100.67.169.111:9093/api/v1/alerts \
+curl -X POST http://xxx.xxx.xxx:9093/api/v1/alerts \
   -H "Content-Type: application/json" \
   -d '[{
     "labels": {
@@ -510,30 +510,16 @@ curl -X POST http://100.67.169.111:9093/api/v1/alerts \
 
 ```bash
 # Check Grafana dashboard
-http://100.120.140.105:3000/d/ai-agents-dashboard/
+http://xxx.xxx.xxx:3000/d/ai-agents-dashboard/
 
 # Verify service status
-curl http://100.67.169.111:5000/health
+curl http://xxx.xxx.xxx:5000/health
 
 # Review recent incidents
-curl http://100.67.169.111:5000/incidents?limit=10
+curl http://xxx.xxx.xxx:5000/incidents?limit=10
 ```
 
-### Troubleshooting
 
-```bash
-# Check container status
-ssh root@100.67.169.111 "docker ps | grep homelab-agents"
-
-# View logs
-ssh root@100.67.169.111 "docker logs homelab-agents -f"
-
-# Restart if needed
-ssh root@100.67.169.111 "docker restart homelab-agents"
-
-# Check Qdrant connection
-curl -s http://192.168.1.99:6333/collections/agent_memory
-```
 
 ---
 
@@ -620,7 +606,7 @@ MIT License - See LICENSE file for details
 
 - **GitHub Issues:** [munkyHeadz/homelab-agents](https://github.com/munkyHeadz/homelab-agents/issues)
 - **Documentation:** See `docs/` directory
-- **Health Check:** http://100.67.169.111:5000/health
+- **Health Check:** http://xxx.xxx.xxx:5000/health
 
 ---
 
