@@ -320,7 +320,7 @@ ai_agents_incidents_by_severity{severity="warning"}
 
 ### Vector Memory System
 
-- **Database:** Qdrant (http://192.168.1.99:6333)
+- **Database:** Qdrant (http://localhost:5000/:6333)
 - **Collection:** agent_memory
 - **Embeddings:** OpenAI text-embedding-3-small
 - **Dimensions:** 1536
