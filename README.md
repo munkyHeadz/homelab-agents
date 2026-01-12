@@ -227,16 +227,16 @@ POST /alert          # Receive Alertmanager webhooks
 ### Example Usage
 ```bash
 # Check system health
-curl http://100.67.169.111:5000/health
+curl http://localhost:5000/health
 
 # Get incident statistics
-curl http://100.67.169.111:5000/stats
+curlhttp://localhost:5000/:5000/stats
 
 # List recent incidents
-curl http://100.67.169.111:5000/incidents?limit=10
+curlhttp://localhost:5000/:5000/incidents?limit=10
 
 # View Prometheus metrics
-curl http://100.67.169.111:5000/metrics
+curlhttp://localhost:5000/:5000/metrics
 ```
 
 ---
